@@ -9,5 +9,5 @@ git commit -m "Updating Pi scripts"
 
 for ip in ${piIP[@]}; do
     echo "Deploying to $ip"
-    ssh pi@$ip "cd /home/RouterScripts && git pull ssh://laptopUser@$laptopIP$laptopPath main"
-done
+    scp -r ./RoutingScripts pi@$ip:~/RouterScripts
+    done
