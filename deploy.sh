@@ -1,6 +1,6 @@
 laptopIP = "192.168.0.190"
 laptopUser = "IsaacO_P16"
-laptopPath = "\Users\iolde\iCloud\iCloudDrive\School\Research\DrGeordon\Programs\RouterScripts"
+laptopPath = "\Users\iolde\iCloud\iCloudDrive\School\Research\DrGeordon\Programs\RoutingScripts"
 piIP = ("192.168.0.244" "192.168.0.198")
 
 echo "Staging and committing changes to GitHub"
