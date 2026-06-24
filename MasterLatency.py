@@ -4,9 +4,8 @@ import time
 
 # Dictionary mapping Pi numbers to their actual testbed IP addresses
 PI_CLUSTER = {
-    1: "10.0.0.11",
-    2: "10.0.0.12",
-    3: "10.0.0.13",
+    1: "192.168.0.244",
+    2: "192.168.0.198",
     # ... up to Pi 20
 }
 
@@ -22,9 +21,7 @@ def calculate_orbital_latencies(sim_step):
     # Pi 1 can talk to Pi 2 (120ms distance) and Pi 3 (45ms distance)
     # This matrix naturally changes as your simulation step increments
     matrix = {
-        1: {PI_CLUSTER[2]: 120.0, PI_CLUSTER[3]: 45.0},
-        2: {PI_CLUSTER[1]: 120.0, PI_CLUSTER[3]: 85.5},
-        3: {PI_CLUSTER[1]: 45.0,  PI_CLUSTER[2]: 85.5}
+        1: {PI_CLUSTER[1]: 45.0,  PI_CLUSTER[2]: 85.5}
     }
     return matrix
 
