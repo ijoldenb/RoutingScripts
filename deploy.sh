@@ -1,13 +1,20 @@
-laptopIP = "192.168.0.190"
-laptopUser = "IsaacO_P16"
-laptopPath = "\Users\iolde\iCloud\iCloudDrive\School\Research\DrGeordon\Programs\RoutingScripts"
-piIP = ("192.168.0.244" "192.168.0.198")
+laptopIP="192.168.0.190"
+laptopUser="IsaacO_P16"
+laptopPath="/mnt/c/Users/iolde/iCloud/iCloudDrive/School/Research/DrGeordon/Programs/RoutingScripts"
+piIP=("192.168.0.244" "192.168.0.198")
+piPath="~./RoutingScripts/"
 
 echo "Staging and committing changes to GitHub"
 git add .
 git commit -m "Updating Pi scripts"
 
-for ip in ${piIP[@]}; do
+for pi in ${piIP[@]}; do
     echo "Deploying to $ip"
-    scp -r ./RoutingScripts pi@$ip:~/RouterScripts
+    rsync -avz \
+        --exclude '.git/' \
+        --exclude '__pycache__/' \
+        --exclude 'venv/' \
+        --exclude '.env' \
+        -e ssh \
+        "$laptopPath" "$laptopUser@$laptopIP:$piPath"
     done
