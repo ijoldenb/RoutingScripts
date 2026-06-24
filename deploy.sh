@@ -3,6 +3,7 @@ laptopUser="IsaacO_P16"
 laptopPath="/mnt/c/Users/iolde/iCloud/iCloudDrive/School/Research/DrGeordon/Programs/RoutingScripts"
 piIP=("192.168.0.244" "192.168.0.198")
 piPath="/home/RoutingScripts/"
+piUser = "pi"
 
 echo "Staging and committing changes to GitHub"
 git add .
@@ -16,5 +17,5 @@ for pi in ${piIP[@]}; do
         --exclude 'venv/' \
         --exclude '.env' \
         -e ssh \
-        "$laptopPath" "$laptopUser@$laptopIP:$piPath"
+        "$laptopPath" "$PiUser@$pi:$piPath"
     done
