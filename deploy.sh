@@ -17,5 +17,5 @@ for pi in ${piIP[@]}; do
         --exclude 'venv/' \
         --exclude '.env' \
         -e ssh \
-        "$laptopPath" "$PiUser@$pi:$piPath"
+        "$laptopPath" "$piUser@$pi:$piPath"
     done
