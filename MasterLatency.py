@@ -20,7 +20,7 @@ PI_CLUSTER = {
     2: "192.168.0.244",
 }
 
-UDP_PORT = 5005
+UDP_PORT = 6001
 PHYSICAL_BASELINE_OVERHEAD = 4
 
 def main():
@@ -28,7 +28,7 @@ def main():
     print("==================================================")
     print("      Laptop Live Latency Controller Active       ")
     print("==================================================\n")
-    print("            Latency = 180 One way                 ")
+    print("            Latency = 130 One way                 ")
     
     while True:
         for pi_id, target_map in MANUAL_LATENCY_CONFIG.items():
