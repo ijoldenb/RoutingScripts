@@ -7,7 +7,7 @@ import time
 # ==============================================================================
 MANUAL_LATENCY_CONFIG = {
     1: {
-        "192.168.102.10": 10.0,  # Latency from Pi 1 to Pi 2 (in ms)
+        "192.168.102.10": 100.0,  # Latency from Pi 1 to Pi 2 (in ms)
     },
     2: {
         "192.168.101.10": 0.0,  # Latency from Pi 2 to Pi 1 (in ms)

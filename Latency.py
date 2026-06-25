@@ -43,16 +43,21 @@ def main():
     sock.bind((UDP_IP, UDP_PORT))
     print(f"Pi Agent online. Awaiting variable pushes from laptop...\n")
 
-    while True:
-        try:
+    try:
+        while True:
             data, addr = sock.recvfrom(1024)
             latency_map = json.loads(data.decode('utf-8'))
             update_latencies(latency_map)
-            print("Doing Stuff")
-        except KeyboardInterrupt:
-            print("\nCleaning up interface...")
-            run_cmd(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root")
-            sys.exit(0)
+            print("Doing Stuff", flush=True)
+            
+    except KeyboardInterrupt:
+        print("\nUser requested stop. Exiting...", flush=True)
+        
+    finally:
+        # 3. This block will ALWAYS run, even if the script crashes or gets closed!
+        print("\n[SAFETY CLEANUP] Restoring default fq_codel network queue...", flush=True)
+        # Suppress errors with 2>/dev/null in case it was already deleted
+        os.system(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root 2>/dev/null")
 
 if __name__ == "__main__":
     main()
