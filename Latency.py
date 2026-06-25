@@ -25,25 +25,14 @@ def init_tc_interface():
 
 def update_latencies(latency_map):
     # Wipe old rules before applying the new matrix payload
-    init_tc_interface()
+    subprocess.run(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root", shell=True, capture_output=True)
+  
+    # (Grabs the first delay value found in the incoming laptop dictionary)
+    target_delay = list(latency_map.values())[0]
     
-    # We map our delays starting at lane index 0 (Band 1)
-    band_id = 0 
-    for target_ip, target_delay in latency_map.items():
-        if band_id > 2:
-            print("Error: This test build supports up to 3 simultaneous targets per Pi.")
-            break
-            
-        handle_id = (band_id + 1) * 10
-        print(f"Python executing rule -> Dest: {target_ip} to Lane {band_id} ({target_delay}ms)")
-        
-        # 1. Inject the latency into the targeted lane
-        run_cmd(f"sudo tc qdisc add dev {NETWORK_INTERFACE} parent 1:{band_id + 1} handle {handle_id}: netem delay {target_delay}ms")
-        
-        # 2. Add the u32 classifier filter linking the target IP to that lane
-        run_cmd(f"sudo tc filter add dev {NETWORK_INTERFACE} protocol ip parent 1:0 prio 1 u32 match ip dst {target_ip} flowid 1:{band_id + 1}")
-        
-        band_id += 1
+    print(f"Applying GLOBAL Interface Delay -> {target_delay}ms on {NETWORK_INTERFACE}")
+    
+    run_cmd(f"sudo tc qdisc add dev {NETWORK_INTERFACE} root netem delay {target_delay}ms")
 
 def main():
     print(f"Targeting network interface: {NETWORK_INTERFACE}")
