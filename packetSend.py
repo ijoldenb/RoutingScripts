@@ -21,7 +21,6 @@ print("[STATUS] File generated.")
 print(f"[STATUS] Sending {DUMMY_FILE} to {RECEIVER_USER}@{RECEIVER_IP}...")
 
 # Build the scp command
-# Format: scp dummy_data.txt pi@192.168.1.50:/home/pi/
 scp_command = [
     "scp", 
     DUMMY_FILE, 
