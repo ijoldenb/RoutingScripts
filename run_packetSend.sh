@@ -1,3 +1,4 @@
+import time
 piIP=("192.168.0.244")
 scriptPath="/home/pi/scripts/RoutingScripts/packetSend.py"
 

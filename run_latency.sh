@@ -10,4 +10,5 @@ for host in ${piIP[@]}; do
     else
         echo "❌ Failed to trigger script on $host"
     fi
+    time.sleep(0.1)
 echo "Commands Sent"
