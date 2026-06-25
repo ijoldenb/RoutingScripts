@@ -2,65 +2,73 @@ import socket
 import json
 import subprocess
 import sys
+import os
 
-UDP_IP = "0.0.0.0"  # Listen on all local interfaces
+UDP_IP = "0.0.0.0"
 UDP_PORT = 5005
-NETWORK_INTERFACE = "eth0" # Change to match your active interface (e.g., eth0, wlan0)
+
+def detect_interface():
+    """Finds if the local Pi uses eth0 or end0 automatically"""
+    interfaces = os.listdir('/sys/class/net/')
+    if 'eth0' in interfaces: return 'eth0'
+    if 'end0' in interfaces: return 'end0'
+    return 'eth0'
+
+NETWORK_INTERFACE = detect_interface()
 
 def run_cmd(cmd):
-    """Executes system shell commands safely"""
     try:
         subprocess.run(cmd, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except subprocess.CalledProcessError:
-        pass # Ignore deletion errors for non-existent rules
+        pass
 
 def init_tc_interface():
-    """Reset tc and create a fresh 4-band priority queuing root"""
-    print(f"Resetting {NETWORK_INTERFACE} queue configurations...")
+    """Resets interface and alters the default priomap"""
     run_cmd(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root")
-    run_cmd(f"sudo tc qdisc add dev {NETWORK_INTERFACE} root handle 1: prio bands 4")
+    
+    # CRITICAL FIX: We tell the prio queue to default ALL unclassified traffic 
+    # to band 3 (the 4th lane), leaving lanes 0, 1, and 2 purely for our custom delays.
+    run_cmd(f"sudo tc qdisc add dev {NETWORK_INTERFACE} root handle 1: prio bands 4 priomap 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3")
 
 def update_latencies(latency_map):
-    """Clears old queues and maps target IPs to latency bands"""
+    # Wipe old rules before applying the new matrix payload
     init_tc_interface()
     
-    band_id = 1
+    # We map our delays starting at lane index 0 (Band 1)
+    band_id = 0 
     for target_ip, target_delay in latency_map.items():
-        if band_id > 3:
-            print("Error: Running out of priority bands! Maximum 3 targets supported per Pi in this test.")
+        if band_id > 2:
+            print("Error: This test build supports up to 3 simultaneous targets per Pi.")
             break
             
-        handle_id = band_id * 10
-        print(f"Applying rule: Dest IP {target_ip} -> Delaying {target_delay}ms")
+        handle_id = (band_id + 1) * 10
+        print(f"Python executing rule -> Dest: {target_ip} to Lane {band_id} ({target_delay}ms)")
         
-        # 1. Attach the specific latency delay to this band lane
-        run_cmd(f"sudo tc qdisc add dev {NETWORK_INTERFACE} parent 1:{band_id} handle {handle_id}: netem delay {target_delay}ms")
+        # 1. Inject the latency into the targeted lane
+        run_cmd(f"sudo tc qdisc add dev {NETWORK_INTERFACE} parent 1:{band_id + 1} handle {handle_id}: netem delay {target_delay}ms")
         
-        # 2. Filter target IP packets into this specific lane
-        run_cmd(f"sudo tc filter add dev {NETWORK_INTERFACE} protocol ip parent 1:0 prio 1 u32 match ip dst {target_ip} flowid 1:{band_id}")
+        # 2. Add the u32 classifier filter linking the target IP to that lane
+        run_cmd(f"sudo tc filter add dev {NETWORK_INTERFACE} protocol ip parent 1:0 prio 1 u32 match ip dst {target_ip} flowid 1:{band_id + 1}")
         
         band_id += 1
 
 def main():
-    # Initial setup step
+    print(f"Targeting network interface: {NETWORK_INTERFACE}")
     init_tc_interface()
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((UDP_IP, UDP_PORT))
-    print(f"\nPi Agent successfully running on port {UDP_PORT}. Waiting for laptop variables...")
+    print(f"Pi Agent online. Awaiting variable pushes from laptop...\n")
 
     while True:
         try:
             data, addr = sock.recvfrom(1024)
             latency_map = json.loads(data.decode('utf-8'))
-            print("\nReceived configuration matrix update.")
             update_latencies(latency_map)
         except KeyboardInterrupt:
-            print("\nCleaning up interface before exiting...")
+            print("\nCleaning up interface...")
             run_cmd(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root")
             sys.exit(0)
-        except Exception as e:
-            print(f"Error handling configuration payload: {e}", file=sys.stderr)
 
 if __name__ == "__main__":
     main()
