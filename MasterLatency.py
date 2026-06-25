@@ -14,10 +14,10 @@ MANUAL_LATENCY_CONFIG = {
     }
 }
 
-# Static IP map matching your physical Pi setup
+# Static IP for SSH
 PI_CLUSTER = {
-    1: "192.168.102.10",
-    2: "192.168.101.10",
+    1: "192.168.0.198",
+    2: "192.168.0.244",
 }
 
 UDP_PORT = 5005
