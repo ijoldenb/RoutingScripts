@@ -7,19 +7,17 @@ import time
 # ==============================================================================
 MANUAL_LATENCY_CONFIG = {
     1: {
-        "10.0.0.12": 180.0,  # Latency from Pi 1 to Pi 2 (in ms)
-        "10.0.0.13": 35.0    # Latency from Pi 1 to Pi 3 (in ms)
+        "192.168.102.10": 180.0,  # Latency from Pi 1 to Pi 2 (in ms)
     },
     2: {
-        "10.0.0.11": 180.0,  # Latency from Pi 2 to Pi 1 (in ms)
+        "192.168.101.10": 180.0,  # Latency from Pi 2 to Pi 1 (in ms)
     }
 }
 
 # Static IP map matching your physical Pi setup
 PI_CLUSTER = {
-    1: "10.0.0.11",
-    2: "10.0.0.12",
-    3: "10.0.0.13",
+    1: "192.168.102.10",
+    2: "192.168.101.10",
 }
 
 UDP_PORT = 5005
@@ -44,8 +42,8 @@ def main():
             json_payload = json.dumps(adjusted_map).encode('utf-8')
             sock.sendto(json_payload, (pi_ip, UDP_PORT))
             
-        print("Pushed latency map variables to the cluster. Sleeping for 2s...")
-        time.sleep(2.0)
+        print("Pushed latency map variables to the cluster. Sleeping for 5s...")
+        time.sleep(5.0)
 
 if __name__ == "__main__":
     main()

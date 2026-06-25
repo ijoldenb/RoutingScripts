@@ -7,14 +7,7 @@ import os
 UDP_IP = "0.0.0.0"
 UDP_PORT = 5005
 
-def detect_interface():
-    """Finds if the local Pi uses eth0 or end0 automatically"""
-    interfaces = os.listdir('/sys/class/net/')
-    if 'eth0' in interfaces: return 'eth0'
-    if 'end0' in interfaces: return 'end0'
-    return 'eth0'
-
-NETWORK_INTERFACE = detect_interface()
+NETWORK_INTERFACE = "eth0"
 
 def run_cmd(cmd):
     try:
