@@ -59,6 +59,7 @@ def main():
             data, addr = sock.recvfrom(1024)
             latency_map = json.loads(data.decode('utf-8'))
             update_latencies(latency_map)
+            print("Doing Stuff")
         except KeyboardInterrupt:
             print("\nCleaning up interface...")
             run_cmd(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root")
