@@ -5,10 +5,6 @@ for host in ${piIP[@]}; do
     ssh -n "pi@$host" "nohup python3 $scriptPath > /dev/null 2>&1 &"
     done
 
-    if [ $? -eq 0 ]; then
-        echo "🚀 successfully started on $host"
-    else
-        echo "❌ Failed to trigger script on $host"
-    fi
-    time.sleep(0.1)
+    echo "🚀 successfully started on $host"
+
 echo "Commands Sent"
