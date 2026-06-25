@@ -10,7 +10,7 @@ MANUAL_LATENCY_CONFIG = {
         "192.168.102.10": 180.0,  # Latency from Pi 1 to Pi 2 (in ms)
     },
     2: {
-        "192.168.101.10": 180.0,  # Latency from Pi 2 to Pi 1 (in ms)
+        "192.168.101.10": 0.0,  # Latency from Pi 2 to Pi 1 (in ms)
     }
 }
 
@@ -21,13 +21,14 @@ PI_CLUSTER = {
 }
 
 UDP_PORT = 5005
-PHYSICAL_BASELINE_OVERHEAD = 0.5 
+PHYSICAL_BASELINE_OVERHEAD = 4
 
 def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     print("==================================================")
     print("      Laptop Live Latency Controller Active       ")
     print("==================================================\n")
+    print("            Latency = 180 One way                 ")
     
     while True:
         for pi_id, target_map in MANUAL_LATENCY_CONFIG.items():
@@ -41,8 +42,6 @@ def main():
             
             json_payload = json.dumps(adjusted_map).encode('utf-8')
             sock.sendto(json_payload, (pi_ip, UDP_PORT))
-            
-        print("Pushed latency map variables to the cluster. Sleeping for 5s...")
         time.sleep(5.0)
 
 if __name__ == "__main__":
