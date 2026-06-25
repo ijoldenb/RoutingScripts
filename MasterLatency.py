@@ -24,7 +24,7 @@ PI_CLUSTER = {
 }
 
 UDP_PORT = 5005
-PHYSICAL_BASELINE_OVERHEAD = 0.5  # Subtracted to compensate for Aruba 2920 & cables
+PHYSICAL_BASELINE_OVERHEAD = 4.1  # Subtracted to compensate for Aruba 2920 & cables
 
 def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
