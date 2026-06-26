@@ -40,7 +40,7 @@ def main():
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("0.0.0.0", 5005)) # Listens on all interfaces
+    sock.bind(("0.0.0.0", 65000)) # Listens on all interfaces
     print(f"Pi Agent online. Awaiting variable pushes...\n", flush=True)
 
     try:
