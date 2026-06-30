@@ -1,0 +1,48 @@
+import networkx as nx
+import random
+
+def generate_satellite_topology(num_nodes=20, timestamp=0.0):
+    # 1. Initialize an Undirected Graph (perfect for symmetric links)
+    G = nx.Graph()
+    
+    # 2. Add your 20 nodes
+    G.add_nodes_from(range(num_nodes))
+    
+    # 3. Create edges with custom metrics (Symmetric by default in nx.Graph)
+    for i in range(num_nodes):
+        for j in range(i + 1, num_nodes):
+            # Simulated orbital logic (replace with your Hypatia math later)
+            simulated_bandwidth = round(random.uniform(2.0, 10.0), 2)  # Mbps
+            simulated_loss = round(random.uniform(0.0, 0.03), 4)       # Drop rate
+            
+            # Add edge with properties
+            G.add_edge(i, j, bandwidth=simulated_bandwidth, loss=simulated_loss)
+            
+    return G
+
+def export_to_ns3_trace(filename, snapshots):
+    with open(filename, 'w') as f:
+        for timestamp, graph in snapshots.items():
+            f.write(f"TIMESTAMP {timestamp}\n")
+            f.write("# src dst bandwidth_mbps loss_rate\n")
+            
+            # NetworkX makes iterating over unique edges trivial
+            for src, dst, data in graph.edges(data=True):
+                bw = data['bandwidth']
+                loss = data['loss']
+                f.write(f"{src} {dst} {bw} {loss}\n")
+                
+            f.write("END\n\n")
+
+# Simulate a 10-second window with updates every 5 seconds
+snapshots = {
+    0.0: generate_satellite_topology(20, 0.0),
+    5.0: generate_satellite_topology(20, 5.0),
+    10.0: generate_satellite_topology(20, 10.0),
+    15.0: generate_satellite_topology(20, 15.0),
+    20.0: generate_satellite_topology(20, 20.0),
+    25.0: generate_satellite_topology(20, 25.0)
+}
+
+export_to_ns3_trace("topology_trace.txt", snapshots)
+print("NetworkX topology trace exported successfully!")
