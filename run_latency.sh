@@ -3,8 +3,8 @@ scriptPath="/home/pi/scripts/RoutingScripts/Latency.py"
 
 for host in ${piIP[@]}; do
     ssh -n "pi@$host" "nohup python3 $scriptPath > /dev/null 2>&1 &"
-    done
 
     echo "🚀 successfully started on $host"
+done
 
 echo "Commands Sent"
