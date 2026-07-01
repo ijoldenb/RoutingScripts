@@ -1,11 +1,15 @@
+from pathlib import Path
+
 import networkx as nx
 import random
 
-def generate_satellite_topology(num_nodes=20, timestamp=0.0):
+numNodes = 3; 
+
+def generate_satellite_topology(num_nodes=numNodes, timestamp=0.0):
     # 1. Initialize an Undirected Graph (perfect for symmetric links)
     G = nx.Graph()
     
-    # 2. Add your 20 nodes
+    # 2. Add your nodes
     G.add_nodes_from(range(num_nodes))
     
     # 3. Create edges with custom metrics (Symmetric by default in nx.Graph)
@@ -35,12 +39,14 @@ def export_to_ns3_trace(filename, snapshots):
             f.write("END\n\n")
 
 # Simulate a 1-hour window with updates every 5 seconds
-simLength = 24*3600  # Simulation Duration in Seconds
+simLength = 1*3600  # Simulation Duration in Seconds
 simStep = 5  # Output every 5 seconds
 snapshots = {}
 
 for x in range(0, simLength + 1, simStep):
-    snapshots[x] = generate_satellite_topology(20, x)
+    snapshots[x] = generate_satellite_topology(numNodes, x)
     
-export_to_ns3_trace("topology_trace.txt", snapshots)
+filePath = Path("/Users/iolde/iCloud/iCloudDrive/School/Research/DrGeordon/Programs/ns-3.48/scratch/topology_trace.txt")
+    
+export_to_ns3_trace(filePath, snapshots)
 print("NetworkX topology trace exported successfully!")
