@@ -7,5 +7,6 @@ for i in $(seq 101 120); do
         continue
     else
         ip route add "$currentIP/24" dev eth0
+        echo "Added route for $currentIP/24 via eth0"
     fi
 done
