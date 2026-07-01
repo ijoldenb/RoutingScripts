@@ -1,3 +1,5 @@
+#!/bin/bash
+
 piIP=("192.168.0.244" "192.168.0.198" "192.167.0.237")
 scriptPath="/home/pi/scripts/RoutingScripts/ipRoute.sh"
 
