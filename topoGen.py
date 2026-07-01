@@ -34,15 +34,13 @@ def export_to_ns3_trace(filename, snapshots):
                 
             f.write("END\n\n")
 
-# Simulate a 10-second window with updates every 5 seconds
-snapshots = {
-    0.0: generate_satellite_topology(20, 0.0),
-    5.0: generate_satellite_topology(20, 5.0),
-    10.0: generate_satellite_topology(20, 10.0),
-    15.0: generate_satellite_topology(20, 15.0),
-    20.0: generate_satellite_topology(20, 20.0),
-    25.0: generate_satellite_topology(20, 25.0)
-}
+# Simulate a 1-hour window with updates every 5 seconds
+simLength = 24*3600  # Simulation Duration in Seconds
+simStep = 5  # Output every 5 seconds
+snapshots = {}
 
+for x in range(0, simLength + 1, simStep):
+    snapshots[x] = generate_satellite_topology(20, x)
+    
 export_to_ns3_trace("topology_trace.txt", snapshots)
 print("NetworkX topology trace exported successfully!")
