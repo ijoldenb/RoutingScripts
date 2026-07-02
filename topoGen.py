@@ -3,7 +3,7 @@ from pathlib import Path
 import networkx as nx
 import random
 
-numNodes = 3; 
+numNodes = 4; 
 
 def generate_satellite_topology(num_nodes=numNodes, timestamp=0.0):
     # 1. Initialize an Undirected Graph (perfect for symmetric links)
@@ -40,7 +40,7 @@ def export_to_ns3_trace(filename, snapshots):
 
 # Simulate a 1-hour window with updates every 5 seconds
 simLength = 1*3600  # Simulation Duration in Seconds
-simStep = 5  # Output every 5 seconds
+simStep = 30  # Output every 5 seconds
 snapshots = {}
 
 for x in range(0, simLength + 1, simStep):
