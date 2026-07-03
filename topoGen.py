@@ -17,7 +17,7 @@ def generate_satellite_topology(num_nodes=numNodes, timestamp=0.0):
         for j in range(i + 1, num_nodes):
             # Simulated orbital logic (replace with your Hypatia math later)
             simulated_bandwidth = round(random.uniform(2.0, 10.0), 2)  # Mbps
-            simulated_loss = round(random.uniform(0.0, 0.00), 4)       # Drop rate
+            simulated_loss = round(random.uniform(0.0, 0.05), 4)       # Drop rate
             
             # Add edge with properties
             G.add_edge(i, j, bandwidth=simulated_bandwidth, loss=simulated_loss)
