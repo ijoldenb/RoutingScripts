@@ -1,6 +1,6 @@
-laptopIP="192.168.0.190"
+laptopIP="192.168.0.243"
 laptopUser="IsaacO_P16"
-laptopPath="/mnt/c/Users/iolde/iCloud/iCloudDrive/School/Research/DrGeordon/Programs/RoutingScripts"
+laptopPath="/home/ijoldenb/RoutingScripts/"
 piIP=("192.168.0.244" "192.168.0.198" "192.168.0.237" "192.168.0.129")
 piPath="/home/pi/scripts/"
 
