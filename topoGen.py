@@ -51,7 +51,7 @@ snapshots = {}
 for x in range(0, simLength + 1, simStep):
     snapshots[x] = generate_satellite_topology(numNodes, x)
     
-filePath = Path("/Users/iolde/iCloud/iCloudDrive/School/Research/DrGeordon/Programs/ns-3.48/scratch/topology_trace.yaml")
+filePath = Path("/home/ijoldenb/ns-3.48/scratch/topology_trace.yaml")
     
 export_to_ns3_trace(filePath, snapshots)
 print("NetworkX topology trace exported successfully!")

@@ -29,8 +29,7 @@ def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     print("==================================================")
     print("      Laptop Live Latency Controller Active       ")
-    print("==================================================\n")
-    print("            Latency = 130 One way                 ")
+    print("==================================================\n")               ")
     
     while True:
         for pi_id, target_map in MANUAL_LATENCY_CONFIG.items():
