@@ -14,12 +14,13 @@ def generate_satellite_topology(num_nodes=numNodes, timestamp=0.0):
     # 3. Create edges with custom metrics (Symmetric by default in nx.Graph)
     for i in range(num_nodes):
         for j in range(i + 1, num_nodes):
-            # Simulated orbital logic (replace with your Hypatia math later)
+            # Simulated orbital logic
             simulated_bandwidth = round(random.uniform(2.0, 10.0), 2)  # Mbps
             simulated_loss = round(random.uniform(0.0, 0.05), 4)       # Drop rate
+            simulated_latency = round(random.uniform(10.0, 150.0), 2)  # Latency in ms
             
             # Add edge with properties
-            G.add_edge(i, j, bandwidth=simulated_bandwidth, loss=simulated_loss)
+            G.add_edge(i, j, bandwidth=simulated_bandwidth, loss=simulated_loss, latency=simulated_latency)
             
     return G
 
@@ -34,12 +35,14 @@ def export_to_ns3_trace(filename, snapshots):
             for src, dst, data in graph.edges(data=True):
                 bw = data['bandwidth']
                 loss = data['loss']
+                lat = data['latency']
                 
-                # --- FIX: Shift 0-indexed nodes to 1-indexed for the YAML file ---
+                # --- Shift 0-indexed nodes to 1-indexed for the YAML file ---
                 f.write(f"    - src: {int(src) + 1}\n")
                 f.write(f"      dst: {int(dst) + 1}\n")
                 f.write(f"      bw: {float(bw)}\n")
                 f.write(f"      drop: {float(loss)}\n")
+                f.write(f"      latency: {float(lat)}\n")
                 
     print(f"Successfully generated 1-indexed trace at: {filename}")
 
