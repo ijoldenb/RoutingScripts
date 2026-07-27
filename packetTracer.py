@@ -27,8 +27,10 @@ def process_packet(pkt):
         pkt_id = pkt[IP].id  
         timestamp = pkt.time 
         
-        # If the source IP matches this Pi, it's an outbound transmission (tx)
         direction = "tx" if src_ip == MY_IP else "rx"
+        
+        # ADD THIS LINE FOR DEBUGGING:
+        print(f"[DEBUG] Sniffed {direction} packet ID {pkt_id} from {src_ip} -> {dst_ip}")
 
         telemetry_data = {
             "pi": PI_ID,
@@ -42,8 +44,9 @@ def process_packet(pkt):
         try:
             payload = json.dumps(telemetry_data).encode('utf-8')
             telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
-        except Exception:
-            pass
+        except Exception as e:
+            # CHANGE THIS LINE TO EXPOSE ERRORS:
+            print(f"[DEBUG] Send failed: {e}")
 
 print(f"[*] Pi {PI_ID} Tracer Active ({MY_IP}). Sniffing on {TARGET_INTERFACE}...")
 sniff(iface=TARGET_INTERFACE, filter=BPF_FILTER, prn=process_packet, store=False)
