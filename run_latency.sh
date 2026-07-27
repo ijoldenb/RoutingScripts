@@ -1,5 +1,5 @@
 piIP=("192.168.0.244" "192.168.0.198" "192.168.0.237" "192.168.0.129")
-scriptPath="/home/pi/scripts/RoutingScripts/Latency.py"
+scriptPath="/home/pi/scripts/Latency.py"
 
 for host in ${piIP[@]}; do
     ssh -n "pi@$host" "nohup python3 $scriptPath > /dev/null 2>&1 &"
