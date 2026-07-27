@@ -4,13 +4,21 @@ import json
 from scapy.all import sniff, IP, get_if_addr
 
 # --- CONFIGURATION ---
-PI_ID = 1                     # Change this for Pi 2, Pi 3, Pi 4
 MAIN_PC_IP = "192.168.0.243"  # Main PC IP on the 192.168.0.x network
 TELEMETRY_PORT = 65001        # Port the Main PC listens on
 TARGET_INTERFACE = "eth0"     # Physical interface on the Pi
 
 # Automatically detect this Pi's IP address on eth0 to determine tx/rx
 MY_IP = get_if_addr(TARGET_INTERFACE)
+
+# Get the Pi's ID based on its IP address
+IP_TO_ID_MAP = {
+    "192.168.101.10": 1,
+    "192.168.102.10": 2,
+    "192.168.103.10": 3,
+    "192.168.104.10": 4
+}
+PI_ID = IP_TO_ID_MAP.get(MY_IP, MY_IP.split('.')[-1])
 
 # BPF FILTER: Capture IP traffic, but explicitly IGNORE:
 # - Telemetry traffic (65001)
