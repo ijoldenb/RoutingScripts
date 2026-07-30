@@ -2,8 +2,9 @@
 set -e
 
 # --- CONFIGURATION BAR ---
-PHYS_NIC="enp0s31f6"
-NUM_NODES=4  # Set this to your 'x' value
+PHYS_NIC="enp0s31f6" # Set this to your physical network interface for the simulation network
+SIM_CONFIG="sim_IP.yaml" # Path to your simulation IP configuration file
+NUM_NODES=$(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$SIM_CONFIG" | wc -l)  # Set this to your 'x' value
 # -------------------------
 
 if [ "$EUID" -ne 0 ]; then

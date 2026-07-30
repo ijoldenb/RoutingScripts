@@ -1,8 +1,14 @@
 from pathlib import Path
 import networkx as nx
 import random
+import yaml
 
-numNodes = 4
+import yaml
+
+with open("sim_ip.yaml", "r") as f:
+    config = yaml.safe_load(f)
+sim_data = config.get("sim_ip", config) if isinstance(config, dict) else config
+numNodes = len(sim_data)
 
 def generate_satellite_topology(num_nodes=numNodes, timestamp=0.0):
     # 1. Initialize an Undirected Graph (perfect for symmetric links)
