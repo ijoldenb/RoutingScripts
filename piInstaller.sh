@@ -7,7 +7,7 @@ mapfile -t piIP < <(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$
 
 for ip in ${piIP[@]}; do
     echo "installing on $ip..."
-    ssh pi@$ip "sudo dpkg -i /home/pi/scripts/*.deb"
+    ssh pi@$ip "sudo dpkg -i /home/pi/scripts/Packages/*.deb"
 done
 wait
 echo "Manual deployment complete!"

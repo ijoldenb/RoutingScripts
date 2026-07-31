@@ -7,35 +7,22 @@ import sys
 # --- NETWORK IDENTIFICATION MAPPINGS ---
 # ==============================================================================
 # The external SSH IP addresses to reach each Pi
-PI_CLUSTER = {
-    1: "192.168.0.244",
-    2: "192.168.0.198",
-    3: "192.168.0.129",
-    4: "192.168.0.237",
-    5: "192.168.0.210",
-    6: "192.168.0.201",
-    7: "192.168.0.156",
-    8: "192.168.0.222",
-    9: "192.168.0.234",
-    10: "192.168.0.165",
-    11: "192.168.0.180"
-}
+import yaml
 
-# The internal VPN/VLAN IPs that `tc` runs against. 
-# Pi 1 needs to know target IP "192.168.102.10" to delay traffic to Pi 2.
-TARGET_IPS = {
-    1: "192.168.101.10",
-    2: "192.168.102.10",
-    3: "192.168.103.10",
-    4: "192.168.104.10",
-    5: "192.168.105.10",
-    6: "192.168.106.10",
-    7: "192.168.107.10",
-    8: "192.168.108.10",
-    9: "192.168.109.10",
-    10: "192.168.110.10",
-    11: "192.168.111.10"
-}
+# Load the YAML configuration
+with open("/home/ijoldenb/RoutingScripts/control_IP.yaml", "r") as f:
+    config1 = yaml.safe_load(f)
+# Expose the dictionary to your script
+control_IP = config1["control_IP"]
+for pi_id, ip in control_IP.items():
+    print(f"Pi #{pi_id} -> {ip}")
+
+with open("/home/ijoldenb/RoutingScripts/sim_IP.yaml", "r") as f:
+    config2 = yaml.safe_load(f)
+# Expose the dictionary to your script
+sim_IP = config2["sim_IP"]
+for pi_id, ip in sim_IP.items():
+    print(f"Pi #{pi_id} -> {ip}")
 
 UDP_PORT = 65000
 PHYSICAL_BASELINE_OVERHEAD = 4
@@ -101,7 +88,7 @@ def main():
         
         # Build node-specific configurations for this timeframe
         # Structure: { pi_id: { "target_ip": latency, ... } }
-        current_config = {i: {} for i in PI_CLUSTER.keys()}
+        current_config = {i: {} for i in control_IP.keys()}
         
         for link in timeline[sim_time]:
             src = link['src']
@@ -111,17 +98,17 @@ def main():
             adjusted_latency = max(0.0, latency - PHYSICAL_BASELINE_OVERHEAD)
             
             # Since the graph is symmetric, we populate both directions
-            if src in PI_CLUSTER and dst in TARGET_IPS:
-                current_config[src][TARGET_IPS[dst]] = round(adjusted_latency, 2)
-            if dst in PI_CLUSTER and src in TARGET_IPS:
-                current_config[dst][TARGET_IPS[src]] = round(adjusted_latency, 2)
+            if src in control_IP and dst in sim_IP:
+                current_config[src][sim_IP[dst]] = round(adjusted_latency, 2)
+            if dst in control_IP and src in sim_IP:
+                current_config[dst][sim_IP[src]] = round(adjusted_latency, 2)
                 
         # Dispatch the JSON configs via UDP to each Pi
         for pi_id, target_map in current_config.items():
             if not target_map:
                 continue
                 
-            pi_ip = PI_CLUSTER[pi_id]
+            pi_ip = control_IP[pi_id]
             try:
                 json_payload = json.dumps(target_map).encode('utf-8')
                 sock.sendto(json_payload, (pi_ip, UDP_PORT))

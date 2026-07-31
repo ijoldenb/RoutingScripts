@@ -1,8 +1,12 @@
 #!/bin/bash
 
 # --- CONFIGURATION ---
-# List of your Raspberry Pi IP addresses
-piIP=("192.168.0.244" "192.168.0.198" "192.168.0.237" "192.168.0.129")
+# Define path to the centralized configuration file
+CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
+
+# Dynamically parse out the IP addresses from the PI_CLUSTER dictionary format
+mapfile -t piIP < <(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$CLUSTER_CONFIG")
+
 
 # The local IP of your Main PC acting as the Chrony Server
 MASTER_IP="192.168.0.243"
