@@ -1,5 +1,7 @@
 #!/bin/bash
 
+laptopPath="/home/ijoldenb/RoutingScripts/"
+
 # Main PC Setup
 # Disable the modern default systemd client
 sudo systemctl disable --now systemd-timesyncd
@@ -8,10 +10,6 @@ sudo apt purge -y systemd-timesyncd ntp openntpd
 sudo rm -f /etc/dhcp/dhclient-exit-hooks.d/timesyncd
 
 sudo apt install chrony
-
-echo "allow 192.168.0.0/24" | sudo tee /etc/chrony/conf.d/simulation.conf
-sudo ufw allow from 192.168.0.0/24 to any port 123 proto udp
-sudo systemctl restart chrony
 
 # Remote Pi Setup
 
@@ -27,8 +25,4 @@ for ip in ${piIP[@]}; do
     ssh pi@$ip "sudo rm -f /etc/dhcp/dhclient-exit-hooks.d/timesyncd"
 
     ssh pi@$ip "sudo dpkg -i /home/pi/scripts/chrony*.deb"
-
-    ssh pi@$ip "echo "server 192.168.0.243 minpoll 2 maxpoll 4 iburst" | sudo tee /etc/chrony/sources.d/master-pc.sources"
-    ssh pi@$ip "sudo systemctl restart chrony"
-    ssh pi@$ip "sudo chronyc makestep"
 done
