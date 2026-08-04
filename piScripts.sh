@@ -1,17 +1,16 @@
+laptopIP="192.168.0.243"
+laptopUser="IsaacO_P16"
+laptopPath="/home/ijoldenb/RoutingScripts/"
+piPath="/home/pi/scripts/"
+
 # Define path to the centralized configuration file
 CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
 
 # Dynamically parse out the IP addresses from the PI_CLUSTER dictionary format
 mapfile -t piIP < <(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$CLUSTER_CONFIG")
 
-scriptPath="/home/pi/scripts/packetTracer.py"
-
 for host in ${piIP[@]}; do
-    ssh -n "pi@$host" "sudo nohup python3 $scriptPath > /dev/null 2>&1 &"
-
-    echo "🚀 successfully started on $host"
+    ssh -n "pi@$host" "rm /home/pi/scripts/Packages/iperf3_3.9-1+deb11u1_arm64.deb"
 done
 
 echo "Commands Sent"
-
-python3 /home/ijoldenb/RoutingScripts/telemCollector.py
