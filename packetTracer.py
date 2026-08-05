@@ -11,13 +11,19 @@ TARGET_INTERFACE = "eth0"     # Physical interface on the Pi
 
 # Automatically detect this Pi's IP address on eth0 to determine tx/rx
 MY_IP = get_if_addr(TARGET_INTERFACE)
+    
+def load_ip_config(file_path):
+    with open(file_path) as f:
+        data = yaml.safe_load(f)
+    # Unwrap inner dict if wrapped under a header (e.g. 'control_ip')
+    if isinstance(next(iter(data.values())), dict):
+        data = next(iter(data.values()))
+    return {int(''.join(filter(str.isdigit, str(k)))): str(v).strip() for k, v in data.items()}
 
-with open("/home/ijoldenb/RoutingScripts/sim_IP.yaml", "r") as f:
-    config1 = yaml.safe_load(f)
-# Expose the dictionary to your script
-sim_IP = config1["sim_IP"]
-for IP, PI_ID in sim_IP.items():
-    print(f"Pi #{IP} -> {PI_ID}")
+PI_CLUSTER = load_ip_config("/home/ijoldenb/RoutingScripts/control_IP.yaml")
+print(">> Loaded Control IPs:")
+for IP, PI_ID in sorted(PI_CLUSTER.items()):
+    print(f"   Pi #{IP} -> {PI_ID}")
 
 # BPF FILTER: Capture IP traffic, but explicitly IGNORE:
 # - Telemetry traffic (65001)

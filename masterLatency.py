@@ -2,28 +2,57 @@ import socket
 import json
 import time
 import sys
+import yaml
+import re
 
 # ==============================================================================
 # --- NETWORK IDENTIFICATION MAPPINGS ---
 # ==============================================================================
 # The external SSH IP addresses to reach each Pi
-import yaml
+def load_ip_config(file_path):
+    """
+    Parses IP configuration files, automatically unwrapping outer keys 
+    (control_ip, sim_IP, etc.) and extracting integer Node IDs.
+    """
+    try:
+        with open(file_path, "r") as f:
+            data = yaml.safe_load(f)
+        
+        # 1. Unwrap outer dictionary if present (e.g., {'control_ip': {1: '...'}})
+        if isinstance(data, dict):
+            for k, v in list(data.items()):
+                if isinstance(v, dict):
+                    data = v
+                    break
 
-# Load the YAML configuration
-with open("/home/ijoldenb/RoutingScripts/control_IP.yaml", "r") as f:
-    config1 = yaml.safe_load(f)
-# Expose the dictionary to your script
-control_IP = config1["control_IP"]
-for pi_id, ip in control_IP.items():
-    print(f"Pi #{pi_id} -> {ip}")
+        # 2. Safely parse integer node IDs (handles 1, "1", "pi1", etc.)
+        parsed = {}
+        for k, v in data.items():
+            match = re.search(r'\d+', str(k))
+            if match:
+                parsed[int(match.group())] = str(v).strip()
+                
+        return parsed
+    except FileNotFoundError:
+        print(f"FATAL ERROR: Could not find configuration file at {file_path}")
+        sys.exit(1)
 
-with open("/home/ijoldenb/RoutingScripts/sim_IP.yaml", "r") as f:
-    config2 = yaml.safe_load(f)
-# Expose the dictionary to your script
-sim_IP = config2["sim_IP"]
-for pi_id, ip in sim_IP.items():
-    print(f"Pi #{pi_id} -> {ip}")
+# ==============================================================================
+# --- DYNAMIC YAML IP CONFIGURATION ---
+# ==============================================================================
+# 1. Load Control Network IPs
+PI_CLUSTER = load_ip_config("/home/ijoldenb/RoutingScripts/control_IP.yaml")
+print(">> Loaded Control IPs:")
+for pi_id, ip in sorted(PI_CLUSTER.items()):
+    print(f"   Pi #{pi_id} -> {ip}")
 
+# 2. Load Simulation Network IPs
+TARGET_IPS = load_ip_config("/home/ijoldenb/RoutingScripts/sim_IP.yaml")
+print(">> Loaded Sim IPs:")
+for pi_id, ip in sorted(TARGET_IPS.items()):
+    print(f"   Pi #{pi_id} -> {ip}")
+        
+        
 UDP_PORT = 65000
 PHYSICAL_BASELINE_OVERHEAD = 4
 
@@ -88,7 +117,7 @@ def main():
         
         # Build node-specific configurations for this timeframe
         # Structure: { pi_id: { "target_ip": latency, ... } }
-        current_config = {i: {} for i in control_IP.keys()}
+        current_config = {i: {} for i in PI_CLUSTER.keys()}
         
         for link in timeline[sim_time]:
             src = link['src']
@@ -98,17 +127,17 @@ def main():
             adjusted_latency = max(0.0, latency - PHYSICAL_BASELINE_OVERHEAD)
             
             # Since the graph is symmetric, we populate both directions
-            if src in control_IP and dst in sim_IP:
-                current_config[src][sim_IP[dst]] = round(adjusted_latency, 2)
-            if dst in control_IP and src in sim_IP:
-                current_config[dst][sim_IP[src]] = round(adjusted_latency, 2)
+            if src in PI_CLUSTER and dst in TARGET_IPS:
+                current_config[src][TARGET_IPS[dst]] = round(adjusted_latency, 2)
+            if dst in PI_CLUSTER and src in TARGET_IPS:
+                current_config[dst][TARGET_IPS[src]] = round(adjusted_latency, 2)
                 
         # Dispatch the JSON configs via UDP to each Pi
         for pi_id, target_map in current_config.items():
             if not target_map:
                 continue
                 
-            pi_ip = control_IP[pi_id]
+            pi_ip = PI_CLUSTER[pi_id]
             try:
                 json_payload = json.dumps(target_map).encode('utf-8')
                 sock.sendto(json_payload, (pi_ip, UDP_PORT))
