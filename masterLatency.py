@@ -10,10 +10,6 @@ import re
 # ==============================================================================
 # The external SSH IP addresses to reach each Pi
 def load_ip_config(file_path):
-    """
-    Parses IP configuration files, automatically unwrapping outer keys 
-    (control_ip, sim_IP, etc.) and extracting integer Node IDs.
-    """
     try:
         with open(file_path, "r") as f:
             data = yaml.safe_load(f)

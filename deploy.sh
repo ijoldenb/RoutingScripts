@@ -14,6 +14,10 @@ git add .
 git commit -m "Updating Pi scripts"
 
 for host in ${piIP[@]}; do
+    ssh -n "pi@$host" "rm -r /home/pi/scripts/*"
+done
+
+for host in ${piIP[@]}; do
     echo "Deploying to $host"
     rsync -avz \
         --exclude '.git/' \
@@ -22,4 +26,4 @@ for host in ${piIP[@]}; do
         --exclude '.env' \
         -e ssh \
         "$laptopPath" "pi@$host:$piPath"
-    done
+done

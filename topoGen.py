@@ -3,8 +3,6 @@ import networkx as nx
 import random
 import yaml
 
-import yaml
-
 with open("sim_IP.yaml", "r") as f:
     config = yaml.safe_load(f)
 sim_data = config.get("sim_ip", config) if isinstance(config, dict) else config
