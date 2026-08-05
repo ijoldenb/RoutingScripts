@@ -10,7 +10,7 @@ CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
 mapfile -t piIP < <(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$CLUSTER_CONFIG")
 
 for host in ${piIP[@]}; do
-    ssh -n "pi@$host" "rm /home/pi/scripts/Packages/iperf3_3.9-1+deb11u1_arm64.deb"
+    ssh -n "pi@$host" "rm -r /home/pi/*.txt"
 done
 
 echo "Commands Sent"
