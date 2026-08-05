@@ -10,32 +10,13 @@ import re
 # ==============================================================================
 # The external SSH IP addresses to reach each Pi
 def load_ip_config(file_path):
-    try:
-        with open(file_path, "r") as f:
-            data = yaml.safe_load(f)
-        
-        # 1. Unwrap outer dictionary if present (e.g., {'control_ip': {1: '...'}})
-        if isinstance(data, dict):
-            for k, v in list(data.items()):
-                if isinstance(v, dict):
-                    data = v
-                    break
+    with open(file_path) as f:
+        data = yaml.safe_load(f)
+    # Unwrap inner dict if wrapped under a header (e.g. 'control_ip')
+    if isinstance(next(iter(data.values())), dict):
+        data = next(iter(data.values()))
+    return {int(''.join(filter(str.isdigit, str(k)))): str(v).strip() for k, v in data.items()}
 
-        # 2. Safely parse integer node IDs (handles 1, "1", "pi1", etc.)
-        parsed = {}
-        for k, v in data.items():
-            match = re.search(r'\d+', str(k))
-            if match:
-                parsed[int(match.group())] = str(v).strip()
-                
-        return parsed
-    except FileNotFoundError:
-        print(f"FATAL ERROR: Could not find configuration file at {file_path}")
-        sys.exit(1)
-
-# ==============================================================================
-# --- DYNAMIC YAML IP CONFIGURATION ---
-# ==============================================================================
 # 1. Load Control Network IPs
 PI_CLUSTER = load_ip_config("/home/ijoldenb/RoutingScripts/control_IP.yaml")
 print(">> Loaded Control IPs:")
