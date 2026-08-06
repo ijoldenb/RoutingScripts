@@ -1,3 +1,4 @@
+import os
 import socket
 import json
 import time
@@ -8,7 +9,7 @@ import re
 # ==============================================================================
 # --- NETWORK IDENTIFICATION MAPPINGS ---
 # ==============================================================================
-laptopPath="~/RoutingScripts/"
+laptopPath = os.path.expanduser("~/RoutingScripts/")
 # The external SSH IP addresses to reach each Pi
 def load_ip_config(file_path):
     with open(file_path) as f:

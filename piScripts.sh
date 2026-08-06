@@ -1,6 +1,6 @@
 laptopIP="192.168.0.243"
 laptopUser="IsaacO_P16"
-laptopPath="~/RoutingScripts/"
+laptopPath="$HOME/RoutingScripts/"
 piPath="/home/pi/scripts/"
 
 # Define path to the centralized configuration file

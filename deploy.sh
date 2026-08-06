@@ -1,4 +1,4 @@
-laptopPath="~/RoutingScripts/"
+laptopPath="$HOME/RoutingScripts/"
 piPath="/home/pi/scripts/"
 
 # Define path to the centralized configuration file

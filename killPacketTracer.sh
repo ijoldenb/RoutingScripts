@@ -1,5 +1,5 @@
 # Path to the centralized YAML configuration file
-laptopPath="~/RoutingScripts/"
+laptopPath="$HOME/RoutingScripts/"
 CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
 
 # Parse out the IP addresses from the YAML file structure natively

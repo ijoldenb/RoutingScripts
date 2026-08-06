@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-laptopPath="~/RoutingScripts/"
+laptopPath="$HOME/RoutingScripts/"
 MAIN_PC_IP="192.168.0.243"
 CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
 

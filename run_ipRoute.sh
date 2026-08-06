@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define path to the centralized configuration file
-laptopPath="~/RoutingScripts/"
+laptopPath="$HOME/RoutingScripts/"
 CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
 
 # Dynamically parse out the IP addresses from the PI_CLUSTER dictionary format

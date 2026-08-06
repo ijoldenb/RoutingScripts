@@ -2,7 +2,9 @@ from pathlib import Path
 import networkx as nx
 import random
 import yaml
-laptopPath="~/RoutingScripts/"
+import os
+
+laptopPath = os.path.expanduser("~/RoutingScripts/")
 with open(f"{laptopPath}sim_IP.yaml", "r") as f:
     config = yaml.safe_load(f)
 sim_data = config.get("sim_ip", config) if isinstance(config, dict) else config

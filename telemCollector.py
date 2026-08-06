@@ -1,3 +1,4 @@
+import os
 import socket
 import json
 import csv
@@ -6,7 +7,7 @@ from collections import defaultdict
 
 # --- CONFIGURATION ---
 TELEMETRY_PORT = 65001
-CSV_FILENAME = "network_latency_results.csv"
+CSV_FILENAME = os.path.expanduser("~/RoutingScripts/Data/network_data.csv")
 
 # Vaults for tracking network states
 trace_buffer = defaultdict(dict)  # Pairs individual packet tx/rx via ip_id

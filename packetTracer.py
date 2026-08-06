@@ -8,7 +8,7 @@ import yaml
 MAIN_PC_IP = "192.168.0.243"  # Main PC IP on the 192.168.0.x network
 TELEMETRY_PORT = 65001        # Port the Main PC listens on
 TARGET_INTERFACE = "eth0"     # Physical interface on the Pi
-scriptPath = "/home/ijoldenb/RoutingScripts/control_IP.yaml"
+laptopPath="~/RoutingScripts/"
 
 # Automatically detect this Pi's IP address on eth0 to determine tx/rx
 MY_IP = get_if_addr(TARGET_INTERFACE)
@@ -21,7 +21,7 @@ def load_ip_config(file_path):
         data = next(iter(data.values()))
     return {int(''.join(filter(str.isdigit, str(k)))): str(v).strip() for k, v in data.items()}
 
-PI_CLUSTER = load_ip_config(f"{scriptPath}")
+PI_CLUSTER = load_ip_config(f"{laptopPath}control_IP.yaml")
 print(">> Loaded Control IPs:")
 for IP, PI_ID in sorted(PI_CLUSTER.items()):
     print(f"   Pi #{IP} -> {PI_ID}")
