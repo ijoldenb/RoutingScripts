@@ -8,6 +8,7 @@ import re
 # ==============================================================================
 # --- NETWORK IDENTIFICATION MAPPINGS ---
 # ==============================================================================
+laptopPath="~/RoutingScripts/"
 # The external SSH IP addresses to reach each Pi
 def load_ip_config(file_path):
     with open(file_path) as f:
@@ -18,13 +19,13 @@ def load_ip_config(file_path):
     return {int(''.join(filter(str.isdigit, str(k)))): str(v).strip() for k, v in data.items()}
 
 # 1. Load Control Network IPs
-PI_CLUSTER = load_ip_config("/home/ijoldenb/RoutingScripts/control_IP.yaml")
+PI_CLUSTER = load_ip_config(f"{laptopPath}control_IP.yaml")
 print(">> Loaded Control IPs:")
 for pi_id, ip in sorted(PI_CLUSTER.items()):
     print(f"   Pi #{pi_id} -> {ip}")
 
 # 2. Load Simulation Network IPs
-TARGET_IPS = load_ip_config("/home/ijoldenb/RoutingScripts/sim_IP.yaml")
+TARGET_IPS = load_ip_config(f"{laptopPath}sim_IP.yaml")
 print(">> Loaded Sim IPs:")
 for pi_id, ip in sorted(TARGET_IPS.items()):
     print(f"   Pi #{pi_id} -> {ip}")

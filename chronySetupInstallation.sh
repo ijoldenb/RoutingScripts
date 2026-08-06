@@ -2,9 +2,10 @@
 set -e
 
 # --- CONFIGURATION ---
-laptopPath="/home/ijoldenb/RoutingScripts/"
-CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
+laptopPath="~/RoutingScripts/"
 MAIN_PC_IP="192.168.0.243"
+
+CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
 # ---------------------
 
 if [ "$EUID" -ne 0 ]; then

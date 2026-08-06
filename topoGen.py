@@ -2,8 +2,8 @@ from pathlib import Path
 import networkx as nx
 import random
 import yaml
-
-with open("sim_IP.yaml", "r") as f:
+laptopPath="~/RoutingScripts/"
+with open(f"{laptopPath}sim_IP.yaml", "r") as f:
     config = yaml.safe_load(f)
 sim_data = config.get("sim_ip", config) if isinstance(config, dict) else config
 numNodes = len(sim_data)

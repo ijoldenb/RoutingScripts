@@ -1,5 +1,6 @@
 # Path to the centralized YAML configuration file
-CLUSTER_CONFIG="${laptopPath}pi_cluster.yaml"
+laptopPath="~/RoutingScripts/"
+CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
 
 # Parse out the IP addresses from the YAML file structure natively
 mapfile -t piIP < <(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$CLUSTER_CONFIG")
