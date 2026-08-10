@@ -10,8 +10,11 @@ NETWORK_INTERFACE = "eth0"
 def clean_exit():
     """The one-stop shop for restoring the network card"""
     print(f"\n[OS CLEANUP] Restoring default fq_codel network queue on {NETWORK_INTERFACE}...", flush=True)
-    os.system(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root 2>/dev/null")
-
+    subprocess.run(
+    ["sudo", "tc", "qdisc", "del", "dev", NETWORK_INTERFACE, "root"],
+    stderr=subprocess.DEVNULL # Ignores errors silently if rule doesn't exist
+)
+    
 def os_signal_handler(signum, frame):
     """Catches OS termination signals (like IDE stop buttons or kill commands)"""
     print(f"\n[SIGNAL DETECTED] Script caught signal {signum}", flush=True)
@@ -27,16 +30,23 @@ signal.signal(signal.SIGTERM, os_signal_handler)
 signal.signal(signal.SIGHUP, os_signal_handler)
 
 def update_latencies(latency_map):
-    subprocess.run(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root", shell=True, capture_output=True)
+    subprocess.run(
+        ["sudo", "tc", "qdisc", "del", "dev", NETWORK_INTERFACE, "root"],
+        stderr=subprocess.DEVNULL
+    )
     target_delay = list(latency_map.values())[0]
     print(f"Applying GLOBAL Interface Delay -> {target_delay}ms", flush=True)
-    os.system(f"sudo tc qdisc add dev {NETWORK_INTERFACE} root netem delay {target_delay}ms")
+    subprocess.run(
+        ["sudo", "tc", "qdisc", "add", "dev", NETWORK_INTERFACE, "root", "netem", "delay", f"{target_delay}ms"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
 
 def main():
     print(f"Targeting network interface: {NETWORK_INTERFACE}", flush=True)
     
     # Initialize a clean slate on boot
-    os.system(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root 2>/dev/null")
+    subprocess.run(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root 2>/dev/null", shell=True)
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
