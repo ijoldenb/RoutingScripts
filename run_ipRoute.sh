@@ -40,6 +40,7 @@ for host in "${piIP[@]}"; do
                 echo "Added/Updated route for $currentIPSubnet/24 via eth0"
             fi
         done
+        sudo ethtool -K eth0 tx off rx off gso off tso off gro off
 EOF
 
     echo "Success on $host"

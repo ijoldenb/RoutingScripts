@@ -1,24 +1,30 @@
 #!/bin/bash
 set -e
 
-# --- CONFIGURATION BAR ---
-# Fallback to $USER if SUDO_USER is not set (i.e., when run without sudo)
-REAL_USER="${SUDO_USER:-$USER}"
-
-# Expand the home directory of that specific user
-REAL_HOME=$(eval echo "~$REAL_USER")
-
-laptopPath="$REAL_HOME/RoutingScripts/"
-PHYS_NIC="enp0s31f6" # Set this to your physical network interface for the simulation network
-CLUSTER_CONFIG="${laptopPath}sim_IP.yaml"
-mapfile -t piIP < <(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$CLUSTER_CONFIG")
-NUM_NODES=$(python3 -c "import yaml; data = yaml.safe_load(open('$C')); print(len(data.get('sim_IP', data)))" 2>/dev/null)
-# -------------------------
-
+# 1. Root check must be FIRST before resolving paths or running commands
 if [ "$EUID" -ne 0 ]; then
   echo "CRITICAL ERROR: Please run as root (sudo)."
   exit 1
 fi
+
+# --- CONFIGURATION BAR ---
+# Target the actual user who invoked sudo (not /root)
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+
+laptopPath="${REAL_HOME}/RoutingScripts/"
+YAML_FILE="${laptopPath}sim_IP.yaml"
+PHYS_NIC="enp0s31f6"
+
+# Guard check: Ensure YAML file exists
+if [ ! -f "$YAML_FILE" ]; then
+    echo "CRITICAL ERROR: File not found at $YAML_FILE"
+    exit 1
+fi
+
+# Run Python without 2>/dev/null so error messages are visible if it fails
+NUM_NODES=$(python3 -c "import yaml; data = yaml.safe_load(open('$YAML_FILE')); print(len(data.get('sim_IP', data)))")
+# --------------------------------------------------------------
 
 echo "=== [1/2] Initializing Physical Hardware: $PHYS_NIC ==="
 ip link set dev "$PHYS_NIC" up
