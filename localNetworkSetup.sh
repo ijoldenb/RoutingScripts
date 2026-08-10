@@ -2,10 +2,17 @@
 set -e
 
 # --- CONFIGURATION BAR ---
+# Fallback to $USER if SUDO_USER is not set (i.e., when run without sudo)
+REAL_USER="${SUDO_USER:-$USER}"
+
+# Expand the home directory of that specific user
+REAL_HOME=$(eval echo "~$REAL_USER")
+
+laptopPath="$REAL_HOME/RoutingScripts/"
 PHYS_NIC="enp0s31f6" # Set this to your physical network interface for the simulation network
-laptopPath="$HOME/RoutingScripts/"
-CLUSTER_CONFIG="${laptopPath}control_IP.yaml" # Path to your simulation IP configuration file
-NUM_NODES=$(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$CLUSTER_CONFIG" | wc -l)  # Set this to your 'x' value
+CLUSTER_CONFIG="${laptopPath}sim_IP.yaml"
+mapfile -t piIP < <(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$CLUSTER_CONFIG")
+NUM_NODES=$(python3 -c "import yaml; data = yaml.safe_load(open('$C')); print(len(data.get('sim_IP', data)))" 2>/dev/null)
 # -------------------------
 
 if [ "$EUID" -ne 0 ]; then

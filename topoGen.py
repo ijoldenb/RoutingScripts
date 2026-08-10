@@ -7,7 +7,7 @@ import os
 laptopPath = os.path.expanduser("~/RoutingScripts/")
 with open(f"{laptopPath}sim_IP.yaml", "r") as f:
     config = yaml.safe_load(f)
-sim_data = config.get("sim_ip", config) if isinstance(config, dict) else config
+sim_data = config.get("sim_IP", config) if isinstance(config, dict) else config
 numNodes = len(sim_data)
 
 def generate_satellite_topology(num_nodes=numNodes, timestamp=0.0):
