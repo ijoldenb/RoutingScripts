@@ -1,7 +1,7 @@
 local_ip=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
 
 piPath="/home/pi/scripts"
-yaml_file="${laptopPath}sim_IP.yaml"
+yaml_file="${piPath}sim_IP.yaml"
 # Evaluates 'sim_ip' if it exists, otherwise falls back to the root object (.), then gets the length
 numNodes=$(python3 -c "import yaml; data = yaml.safe_load(open('$yaml_file')); print(len(data.get('sim_IP', data)))")
 vlan="$(($numNodes + 100))"
