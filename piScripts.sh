@@ -10,7 +10,8 @@ CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
 mapfile -t piIP < <(grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' "$CLUSTER_CONFIG")
 
 for host in ${piIP[@]}; do
-    ssh -n "pi@$host" "rm -r /home/pi/scripts/*"
+    ssh -n "pi@$host" "sudo ip route flush dev eth0"
+    ssh -n "pi@$host" "sudo systemctl restart networking"
 done
 
 echo "Commands Sent"

@@ -31,6 +31,8 @@ ip link set dev "$PHYS_NIC" up
 ip link set dev "$PHYS_NIC" promisc on
 echo "Success: Physical link optimized."
 echo ""
+# Disable offloading on physical NIC
+sudo ethtool -K enp0s31f6 tx off rx off gso off tso off gro off
 
 echo "=== [2/2] Provisioning $NUM_NODES Dynamic VLAN Interfaces ==="
 for ((i=1; i<=NUM_NODES; i++)); do
@@ -48,6 +50,8 @@ for ((i=1; i<=NUM_NODES; i++)); do
     # 3. Bring up and enable promiscuous mode
     ip link set dev "$VLAN_NAME" up
     ip link set dev "$VLAN_NAME" promisc on
+
+    sudo ethtool -K "$VLAN_NAME" tx off rx off gso off tso off gro off 2>/dev/null || true
     
     echo "     Status: $VLAN_NAME active."
 done

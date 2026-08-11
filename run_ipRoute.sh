@@ -40,7 +40,8 @@ for host in "${piIP[@]}"; do
                 echo "Added/Updated route for $currentIPSubnet/24 via eth0"
             fi
         done
-        sudo ethtool -K eth0 tx off rx off gso off tso off gro off
+        # Disable offloading on the Pi's main network interface (usually eth0)
+        sudo ethtool -K eth0 tx off rx off tso off gso off gro off 2>/dev/null
 EOF
 
     echo "Success on $host"
