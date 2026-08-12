@@ -1,4 +1,4 @@
-piIP=("192.168.0.244")
+piIP=("192.168.0.198")
 scriptPath="/home/pi/scripts/packetSend.py"
 
 for host in ${piIP[@]}; do
