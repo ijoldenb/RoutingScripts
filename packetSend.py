@@ -13,7 +13,7 @@ FILE_SIZE_BYTES = 1024 * 1024 * 0.1   # 10 MB
 print("[STATUS] Generating 1MB dummy file...")
 with open(DUMMY_FILE, 'w') as f:
     chunk = "".join(random.choice(['0', '1']) for _ in range(1024))
-    for _ in range(FILE_SIZE_BYTES // 1024):
+    for _ in range(FILE_SIZE_BYTES // 10):
         f.write(chunk)
 print("[STATUS] File generated.")
 
