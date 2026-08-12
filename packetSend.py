@@ -21,8 +21,12 @@ print("[STATUS] File generated.")
 print(f"[STATUS] Sending {DUMMY_FILE} to {RECEIVER_USER}@{RECEIVER_IP}...")
 
 # Build the scp command
+PI_PASSWORD = 'PiSatNetwork'  # Put the Pi password here
+
 scp_command = [
-    "scp", 
+    "sshpass", "-p", PI_PASSWORD,
+    "scp",
+    "-o", "StrictHostKeyChecking=no",
     DUMMY_FILE, 
     f"{RECEIVER_USER}@{RECEIVER_IP}:{DESTINATION_PATH}"
 ]
