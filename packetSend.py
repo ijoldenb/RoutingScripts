@@ -7,7 +7,7 @@ RECEIVER_IP = '192.168.103.10'   # The IP of the destination Raspberry Pi
 RECEIVER_USER = 'pi'             # The username on the destination Pi
 DESTINATION_PATH = '/home/pi/'   # Where to save the file on the receiver
 DUMMY_FILE = 'dummy_data.txt'
-FILE_SIZE_BYTES = 1024 * 1024    # 1 MB
+FILE_SIZE_BYTES = 10240 * 1024    # 1 MB
 
 # 1. Generate the dummy file
 print("[STATUS] Generating 1MB dummy file...")
