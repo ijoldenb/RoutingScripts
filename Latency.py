@@ -5,7 +5,6 @@ import socket
 import json
 import yaml
 import subprocess
-import re
 from scapy.all import get_if_addr
 
 # --- CONFIGURATION ---
@@ -15,7 +14,6 @@ AGENT_PORT = 65000            # Port tc agent listens on
 TARGET_INTERFACE = "eth0"     # Physical interface on the Pi
 CONFIG_PATH = os.path.expanduser("~/RoutingScripts/control_IP.yaml")
 
-# Detect this Pi's IP address on eth0
 try:
     MY_IP = get_if_addr(TARGET_INTERFACE)
 except Exception as e:
@@ -39,93 +37,113 @@ def get_my_pi_id(file_path, my_ip):
 
 PI_ID = get_my_pi_id(CONFIG_PATH, MY_IP)
 
-# Create non-blocking UDP socket to prevent buffer locking
 telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 telemetry_sock.setblocking(False)
 
-# Pre-compile regex matchers for robust line parsing
-ip_port_re = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\.(\d+)\s+>\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\.(\d+)')
-seq_re = re.compile(r'seq (\d+)')
-ack_re = re.compile(r'ack (\d+)')
-len_re = re.compile(r'length (\d+)')
-
+# Captures TCP and ICMP (Ping), expanding buffer size (-B 4096) to handle iperf3 load
 tcpdump_cmd = [
-    "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-tt", "-n", "-l",
-    f"tcp and not port {TELEMETRY_PORT} and not port {AGENT_PORT}"
+    "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-B", "4096", "-tt", "-n", "-l",
+    f"(tcp or icmp) and not port {TELEMETRY_PORT} and not port {AGENT_PORT}"
 ]
 
-print(f"[*] Pi #{PI_ID} Tracer Active ({MY_IP}). Sniffing {TARGET_INTERFACE}...")
+print(f"[*] Pi #{PI_ID} High-Performance Tracer Active ({MY_IP}). Sniffing {TARGET_INTERFACE}...")
 
 proc = subprocess.Popen(
     tcpdump_cmd,
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL,
     text=True,
-    bufsize=1024
+    bufsize=8192
 )
 
-# Counter for packet sampling during heavy load
-pkt_count = 0
+def parse_line(line):
+    parts = line.strip().split()
+    if len(parts) < 4 or parts[1] != "IP":
+        return None
 
-try:
-    for line in iter(proc.stdout.readline, ''):
-        pkt_count += 1
+    ts = float(parts[0])
+
+    # --- HANDLE ICMP (PING) ---
+    if "ICMP" in line:
+        src_ip = parts[2]
+        dst_ip = parts[4].rstrip(':')
+        icmp_type = "request" if "echo request" in line else ("reply" if "echo reply" in line else None)
+        if not icmp_type:
+            return None
         
-        # Global exception handler prevents ANY single line from crashing the process
+        seq = 0
+        if "seq " in line:
+            try:
+                seq = int(line.split("seq ")[1].split(",")[0].split()[0])
+            except Exception:
+                pass
+
+        direction = "tx" if src_ip == MY_IP else "rx"
+        return {
+            "proto": "icmp",
+            "pi": PI_ID,
+            "dir": direction,
+            "src": src_ip,
+            "dst": dst_ip,
+            "type": icmp_type,
+            "seq": seq,
+            "ts": ts
+        }
+
+    # --- HANDLE TCP (IPERF3 / FILE TRANSFERS) ---
+    if ">" in parts:
         try:
-            parts = line.strip().split()
-            if len(parts) < 5 or parts[1] != "IP":
-                continue
+            idx = parts.index(">")
+            src_full = parts[idx - 1]
+            dst_full = parts[idx + 1].rstrip(':')
 
-            # 1. Microsecond Kernel Timestamp
-            timestamp = float(parts[0])
+            src_ip, sport = src_full.rsplit('.', 1)
+            dst_ip, dport = dst_full.rsplit('.', 1)
 
-            # 2. Extract IPs and Ports safely via Regex
-            match = ip_port_re.search(line)
-            if not match:
-                continue
+            seq = 0
+            ack = 0
+            pkt_len = 0
 
-            src_ip, sport, dst_ip, dport = match.groups()
+            if "seq " in line:
+                seq_str = line.split("seq ")[1].split(",")[0].split()[0]
+                seq = int(seq_str.split(":")[0]) if ":" in seq_str else int(seq_str)
 
-            # 3. Extract TCP Fields
-            seq_match = seq_re.search(line)
-            ack_match = ack_re.search(line)
-            len_match = len_re.search(line)
+            if "ack " in line:
+                ack = int(line.split("ack ")[1].split(",")[0].split()[0])
 
-            seq_num = int(seq_match.group(1)) if seq_match else 0
-            ack_num = int(ack_match.group(1)) if ack_match else 0
-            pkt_len = int(len_match.group(1)) if len_match else 0
-
-            # 4. Optional Sampling: Skip pure zero-len data acknowledgments under high load
-            # Keeps telemetry lightweight during multigigabyte file streams
-            if pkt_len == 0 and ack_num == 0 and pkt_count % 2 != 0:
-                continue
+            if "length " in line:
+                pkt_len = int(line.split("length ")[1].split()[0])
 
             direction = "tx" if src_ip == MY_IP else "rx"
-
-            telemetry_data = {
+            return {
+                "proto": "tcp",
                 "pi": PI_ID,
                 "dir": direction,
                 "src": src_ip,
                 "dst": dst_ip,
                 "sport": int(sport),
                 "dport": int(dport),
-                "seq": seq_num,
-                "ack": ack_num,
+                "seq": seq,
+                "ack": ack,
                 "len": pkt_len,
-                "ts": timestamp
+                "ts": ts
             }
-
-            payload = json.dumps(telemetry_data).encode('utf-8')
-            
-            # Send telemetry safely (drop packet if socket buffer is temporarily full)
-            try:
-                telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
-            except (OSError, socket.error):
-                pass  # Ignore temporary buffer overflows
-
         except Exception:
-            continue  # Catch parsing errors on non-standard packets and keep running
+            return None
+
+    return None
+
+try:
+    for line in iter(proc.stdout.readline, ''):
+        try:
+            telemetry_data = parse_line(line)
+            if telemetry_data:
+                payload = json.dumps(telemetry_data).encode('utf-8')
+                telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
+        except (OSError, socket.error):
+            pass  # Drop telemetry cleanly if socket buffer is temporarily full
+        except Exception:
+            continue
 
 except KeyboardInterrupt:
     proc.terminate()
