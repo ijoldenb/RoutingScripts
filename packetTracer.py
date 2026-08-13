@@ -40,13 +40,13 @@ PI_ID = get_my_pi_id(CONFIG_PATH, MY_IP)
 telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 telemetry_sock.setblocking(False)
 
-# Captures TCP and ICMP (Ping), expanding buffer size (-B 4096) to handle iperf3 load
+# Sniffs TCP, UDP, and ICMP while excluding control/telemetry ports
 tcpdump_cmd = [
     "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-B", "4096", "-tt", "-n", "-l",
-    f"(tcp or icmp) and not port {TELEMETRY_PORT} and not port {AGENT_PORT}"
+    f"(tcp or udp or icmp) and not port {TELEMETRY_PORT} and not port {AGENT_PORT}"
 ]
 
-print(f"[*] Pi #{PI_ID} High-Performance Tracer Active ({MY_IP}). Sniffing {TARGET_INTERFACE}...")
+print(f"[*] Pi #{PI_ID} Tracer Active ({MY_IP}). Sniffing {TARGET_INTERFACE}...")
 
 proc = subprocess.Popen(
     tcpdump_cmd,
@@ -87,10 +87,11 @@ def parse_line(line):
             "dst": dst_ip,
             "type": icmp_type,
             "seq": seq,
-            "ts": ts
+            "ts": ts,
+            "len": 64  # Standard ICMP payload size
         }
 
-    # --- HANDLE TCP (IPERF3 / FILE TRANSFERS) ---
+    # --- HANDLE TCP & UDP (DATA FLOWS) ---
     if ">" in parts:
         try:
             idx = parts.index(">")
@@ -104,6 +105,8 @@ def parse_line(line):
             ack = 0
             pkt_len = 0
 
+            proto = "udp" if "UDP" in line else "tcp"
+
             if "seq " in line:
                 seq_str = line.split("seq ")[1].split(",")[0].split()[0]
                 seq = int(seq_str.split(":")[0]) if ":" in seq_str else int(seq_str)
@@ -116,7 +119,7 @@ def parse_line(line):
 
             direction = "tx" if src_ip == MY_IP else "rx"
             return {
-                "proto": "tcp",
+                "proto": proto,
                 "pi": PI_ID,
                 "dir": direction,
                 "src": src_ip,
@@ -141,7 +144,7 @@ try:
                 payload = json.dumps(telemetry_data).encode('utf-8')
                 telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
         except (OSError, socket.error):
-            pass  # Drop telemetry cleanly if socket buffer is temporarily full
+            pass
         except Exception:
             continue
 

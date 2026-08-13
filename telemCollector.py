@@ -1,153 +1,98 @@
 #!/usr/bin/env python3
-import os
-import sys
 import socket
 import json
-import yaml
-import subprocess
-from scapy.all import get_if_addr
+import time
 
-# --- CONFIGURATION ---
-MAIN_PC_IP = "192.168.0.243"  # Central Laptop / Collector IP
-TELEMETRY_PORT = 65001        # Port telemCollector.py listens on
-AGENT_PORT = 65000            # Port tc agent listens on
-TARGET_INTERFACE = "eth0"     # Physical interface on the Pi
-CONFIG_PATH = os.path.expanduser("~/RoutingScripts/control_IP.yaml")
+TELEMETRY_PORT = 65001
+REPORT_INTERVAL = 1.0  # Calculate bandwidth every 1 second
 
-try:
-    MY_IP = get_if_addr(TARGET_INTERFACE)
-except Exception as e:
-    print(f"[FATAL] Unable to get IP address for interface {TARGET_INTERFACE}: {e}")
-    sys.exit(1)
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(("0.0.0.0", TELEMETRY_PORT))
 
-def get_my_pi_id(file_path, my_ip):
-    if not os.path.exists(file_path):
-        return "Unknown"
+print(f"[*] Telemetry Collector listening on port {TELEMETRY_PORT}...")
+
+# Latency Tracking tables
+pending_tcp = {}
+pending_icmp = {}
+
+# Bandwidth Tracking table: (pi_id, src_ip, dst_ip) -> total_bytes
+bw_counter = {}
+
+last_cleanup = time.time()
+last_bw_report = time.time()
+
+while True:
     try:
-        with open(file_path) as f:
-            data = yaml.safe_load(f)
-        if isinstance(next(iter(data.values())), dict):
-            data = next(iter(data.values()))
-        for pi_id, ip in data.items():
-            if str(ip).strip() == my_ip:
-                return str(pi_id)
+        data, _ = sock.recvfrom(8192)
+        msg = json.loads(data.decode('utf-8'))
+
+        proto = msg.get("proto")
+        pi_id = msg.get("pi")
+        direction = msg.get("dir")
+        src_ip = msg.get("src")
+        dst_ip = msg.get("dst")
+        ts = msg.get("ts")
+        pkt_len = msg.get("len", 0)
+
+        # --- BANDWIDTH TRACKING ---
+        # Track bytes on outgoing transmissions (TX) for accurate throughput measurement
+        if direction == "tx" and pkt_len > 0:
+            flow_key = (pi_id, src_ip, dst_ip)
+            bw_counter[flow_key] = bw_counter.get(flow_key, 0) + pkt_len
+
+        # --- PROCESS ICMP (PING) ---
+        if proto == "icmp":
+            seq = msg.get("seq")
+            if direction == "tx" and msg.get("type") == "request":
+                pending_icmp[(pi_id, dst_ip, seq)] = ts
+
+            elif direction == "rx" and msg.get("type") == "reply":
+                key = (pi_id, src_ip, seq)
+                if key in pending_icmp:
+                    tx_ts = pending_icmp.pop(key)
+                    rtt_ms = (ts - tx_ts) * 1000.0
+                    if rtt_ms >= 0:
+                        print(f"[PING RTT] Pi #{pi_id} ({dst_ip}) -> {src_ip} | Latency: {rtt_ms:.3f} ms")
+
+        # --- PROCESS TCP ---
+        elif proto == "tcp":
+            sport = msg.get("sport")
+            dport = msg.get("dport")
+            seq = msg.get("seq", 0)
+            ack = msg.get("ack", 0)
+
+            if direction == "tx" and pkt_len > 0:
+                expected_ack = seq + pkt_len
+                pending_tcp[(pi_id, dst_ip, sport, expected_ack)] = ts
+
+            elif direction == "rx" and ack > 0:
+                key = (pi_id, src_ip, dport, ack)
+                if key in pending_tcp:
+                    tx_ts = pending_tcp.pop(key)
+                    rtt_ms = (ts - tx_ts) * 1000.0
+                    if rtt_ms >= 0:
+                        print(f"[TCP RTT]  Pi #{pi_id} ({dst_ip}) -> {src_ip} | Latency: {rtt_ms:.3f} ms")
+
+        # --- PERIODIC BANDWIDTH REPORTING ---
+        now = time.time()
+        bw_elapsed = now - last_bw_report
+        if bw_elapsed >= REPORT_INTERVAL:
+            for (pi, src, dst), total_bytes in list(bw_counter.items()):
+                # Add ~54 bytes per frame to approximate full Layer 2 Ethernet frame overhead
+                mbps = (total_bytes * 8) / (bw_elapsed * 1_000_000)
+                if mbps >= 0.01:  # Filter out idle background noise
+                    print(f"===> [BANDWIDTH] Pi #{pi} | Flow: {src} -> {dst} | Rate: {mbps:.2f} Mbps")
+
+            bw_counter.clear()
+            last_bw_report = now
+
+        # Memory safeguard
+        if now - last_cleanup > 5.0:
+            if len(pending_tcp) > 10000:
+                pending_tcp.clear()
+            if len(pending_icmp) > 1000:
+                pending_icmp.clear()
+            last_cleanup = now
+
     except Exception:
-        pass
-    return "Unknown"
-
-PI_ID = get_my_pi_id(CONFIG_PATH, MY_IP)
-
-telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-telemetry_sock.setblocking(False)
-
-# Sniffs TCP, UDP, and ICMP while excluding control/telemetry ports
-tcpdump_cmd = [
-    "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-B", "4096", "-tt", "-n", "-l",
-    f"(tcp or udp or icmp) and not port {TELEMETRY_PORT} and not port {AGENT_PORT}"
-]
-
-print(f"[*] Pi #{PI_ID} Tracer Active ({MY_IP}). Sniffing {TARGET_INTERFACE}...")
-
-proc = subprocess.Popen(
-    tcpdump_cmd,
-    stdout=subprocess.PIPE,
-    stderr=subprocess.DEVNULL,
-    text=True,
-    bufsize=8192
-)
-
-def parse_line(line):
-    parts = line.strip().split()
-    if len(parts) < 4 or parts[1] != "IP":
-        return None
-
-    ts = float(parts[0])
-
-    # --- HANDLE ICMP (PING) ---
-    if "ICMP" in line:
-        src_ip = parts[2]
-        dst_ip = parts[4].rstrip(':')
-        icmp_type = "request" if "echo request" in line else ("reply" if "echo reply" in line else None)
-        if not icmp_type:
-            return None
-        
-        seq = 0
-        if "seq " in line:
-            try:
-                seq = int(line.split("seq ")[1].split(",")[0].split()[0])
-            except Exception:
-                pass
-
-        direction = "tx" if src_ip == MY_IP else "rx"
-        return {
-            "proto": "icmp",
-            "pi": PI_ID,
-            "dir": direction,
-            "src": src_ip,
-            "dst": dst_ip,
-            "type": icmp_type,
-            "seq": seq,
-            "ts": ts,
-            "len": 64  # Standard ICMP payload size
-        }
-
-    # --- HANDLE TCP & UDP (DATA FLOWS) ---
-    if ">" in parts:
-        try:
-            idx = parts.index(">")
-            src_full = parts[idx - 1]
-            dst_full = parts[idx + 1].rstrip(':')
-
-            src_ip, sport = src_full.rsplit('.', 1)
-            dst_ip, dport = dst_full.rsplit('.', 1)
-
-            seq = 0
-            ack = 0
-            pkt_len = 0
-
-            proto = "udp" if "UDP" in line else "tcp"
-
-            if "seq " in line:
-                seq_str = line.split("seq ")[1].split(",")[0].split()[0]
-                seq = int(seq_str.split(":")[0]) if ":" in seq_str else int(seq_str)
-
-            if "ack " in line:
-                ack = int(line.split("ack ")[1].split(",")[0].split()[0])
-
-            if "length " in line:
-                pkt_len = int(line.split("length ")[1].split()[0])
-
-            direction = "tx" if src_ip == MY_IP else "rx"
-            return {
-                "proto": proto,
-                "pi": PI_ID,
-                "dir": direction,
-                "src": src_ip,
-                "dst": dst_ip,
-                "sport": int(sport),
-                "dport": int(dport),
-                "seq": seq,
-                "ack": ack,
-                "len": pkt_len,
-                "ts": ts
-            }
-        except Exception:
-            return None
-
-    return None
-
-try:
-    for line in iter(proc.stdout.readline, ''):
-        try:
-            telemetry_data = parse_line(line)
-            if telemetry_data:
-                payload = json.dumps(telemetry_data).encode('utf-8')
-                telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
-        except (OSError, socket.error):
-            pass
-        except Exception:
-            continue
-
-except KeyboardInterrupt:
-    proc.terminate()
-    sys.exit(0)
+        continue
