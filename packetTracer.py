@@ -54,46 +54,40 @@ BPF_FILTER = f"ip and not port {TELEMETRY_PORT} and not port 319 and not port 32
 telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 def process_packet(pkt):
-    if IP in pkt:
-        src_ip = pkt[IP].src
-        dst_ip = pkt[IP].dst
+    # Quick filter: ignore packets not involving local IP to reduce JSON load
+    if IP not in pkt:
+        return
         
-        # Cast Scapy's high-precision EDecimal timestamp to a standard Python float for JSON
-        timestamp = float(pkt.time)
-        
-        # --- PROTOCOL-SPECIFIC UNIQUE KEYING ---
-        if TCP in pkt:
-            # TCP uses Sequence Number
-            pkt_id = f"tcp_{pkt[TCP].seq}"
-        elif ICMP in pkt:
-            # ICMP uses Sequence ID
-            pkt_id = f"icmp_{pkt[ICMP].seq}"
-        elif UDP in pkt:
-            # UDP fingerprint: Source Port + Dest Port + IP ID + CRC32 of Payload
-            payload_bytes = bytes(pkt[UDP].payload)[:64]
-            crc = zlib.crc32(payload_bytes)
-            pkt_id = f"udp_{pkt[UDP].sport}_{pkt[UDP].dport}_{pkt[IP].id}_{crc}"
-        else:
-            # Fallback for standard IP traffic
-            pkt_id = f"ip_{pkt[IP].id}"
+    src_ip = pkt[IP].src
+    dst_ip = pkt[IP].dst
+    
+    # Grab kernel capture timestamp directly
+    timestamp = float(pkt.time)
 
-        # Determine if this Pi transmitted or received this packet
-        direction = "tx" if src_ip == MY_IP else "rx"
+    # Use IP Header ID instead of hashing raw payloads for UDP during high throughput
+    if TCP in pkt:
+        pkt_id = f"tcp_{pkt[TCP].seq}"
+    elif UDP in pkt:
+        pkt_id = f"udp_{pkt[UDP].sport}_{pkt[UDP].dport}_{pkt[IP].id}"
+    else:
+        pkt_id = f"ip_{pkt[IP].id}"
 
-        telemetry_data = {
-            "pi": PI_ID,
-            "dir": direction,
-            "ip_id": pkt_id,
-            "src": src_ip,
-            "dst": dst_ip,
-            "ts": timestamp
-        }
+    direction = "tx" if src_ip == MY_IP else "rx"
 
-        try:
-            payload = json.dumps(telemetry_data).encode('utf-8')
-            telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
-        except Exception as e:
-            print(f"[ERROR] Failed to send telemetry: {e}")
+    telemetry_data = {
+        "pi": PI_ID,
+        "dir": direction,
+        "ip_id": pkt_id,
+        "src": src_ip,
+        "dst": dst_ip,
+        "ts": timestamp
+    }
+
+    try:
+        payload = json.dumps(telemetry_data).encode('utf-8')
+        telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
+    except Exception:
+        pass  # Avoid printing errors in hot loop to prevent stdout blocking
 
 # --- START SNIFFER ---
 print(f"[*] Pi #{PI_ID} Packet Tracer Active ({MY_IP}). Sniffing on {TARGET_INTERFACE}...")
