@@ -1,69 +1,115 @@
-import socket
-import json
+#!/usr/bin/env python3
 import os
 import sys
+import socket
+import json
+import yaml
 import subprocess
-import signal  # <-- Crucial addition
+import re
+from scapy.all import get_if_addr
 
-NETWORK_INTERFACE = "eth0"
+# --- CONFIGURATION ---
+MAIN_PC_IP = "192.168.0.243"  # Central Laptop / Collector IP
+TELEMETRY_PORT = 65001        # Port telemCollector.py listens on
+AGENT_PORT = 65000            # Port your tc agent listens on
+TARGET_INTERFACE = "eth0"     # Physical interface on the Pi
+CONFIG_PATH = os.path.expanduser("~/RoutingScripts/control_IP.yaml")
 
-def clean_exit():
-    """The one-stop shop for restoring the network card"""
-    print(f"\n[OS CLEANUP] Restoring default fq_codel network queue on {NETWORK_INTERFACE}...", flush=True)
-    subprocess.run(
-    ["sudo", "tc", "qdisc", "del", "dev", NETWORK_INTERFACE, "root"],
-    stderr=subprocess.DEVNULL # Ignores errors silently if rule doesn't exist
-)
-    
-def os_signal_handler(signum, frame):
-    """Catches OS termination signals (like IDE stop buttons or kill commands)"""
-    print(f"\n[SIGNAL DETECTED] Script caught signal {signum}", flush=True)
-    clean_exit()
-    sys.exit(0)
+# Detect this Pi's IP address on eth0
+try:
+    MY_IP = get_if_addr(TARGET_INTERFACE)
+except Exception as e:
+    print(f"[FATAL] Unable to get IP address for interface {TARGET_INTERFACE}: {e}")
+    sys.exit(1)
 
-# ==============================================================================
-# REGISTER THE OS BOTTLENECKS
-# ==============================================================================
-# Catch standard termination (IDE Stop buttons, standard 'kill' commands)
-signal.signal(signal.SIGTERM, os_signal_handler)
-# Catch terminal closures (If you close the SSH window while it's running)
-signal.signal(signal.SIGHUP, os_signal_handler)
-
-def update_latencies(latency_map):
-    subprocess.run(
-        ["sudo", "tc", "qdisc", "del", "dev", NETWORK_INTERFACE, "root"],
-        stderr=subprocess.DEVNULL
-    )
-    target_delay = list(latency_map.values())[0]
-    print(f"Applying GLOBAL Interface Delay -> {target_delay}ms", flush=True)
-    subprocess.run(
-        ["sudo", "tc", "qdisc", "add", "dev", NETWORK_INTERFACE, "root", "netem", "delay", f"{target_delay}ms"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-
-def main():
-    print(f"Targeting network interface: {NETWORK_INTERFACE}", flush=True)
-    
-    # Initialize a clean slate on boot
-    subprocess.run(f"sudo tc qdisc del dev {NETWORK_INTERFACE} root 2>/dev/null", shell=True)
-    
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("0.0.0.0", 65000)) # Listens on all interfaces
-    print(f"Pi Agent online. Awaiting variable pushes...\n", flush=True)
-
+def get_my_pi_id(file_path, my_ip):
+    if not os.path.exists(file_path):
+        return "Unknown"
     try:
-        while True:
-            data, addr = sock.recvfrom(1024)
-            latency_map = json.loads(data.decode('utf-8'))
-            update_latencies(latency_map)
-            print("Doing Stuff", flush=True)
-            
-    except KeyboardInterrupt:
-        # Catch standard Ctrl+C in terminal
-        clean_exit()
-        sys.exit(0)
+        with open(file_path) as f:
+            data = yaml.safe_load(f)
+        if isinstance(next(iter(data.values())), dict):
+            data = next(iter(data.values()))
+        for pi_id, ip in data.items():
+            if str(ip).strip() == my_ip:
+                return str(pi_id)
+    except Exception:
+        pass
+    return "Unknown"
 
-if __name__ == "__main__":
-    main()
+PI_ID = get_my_pi_id(CONFIG_PATH, MY_IP)
+telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# Pre-compile regex matchers for tcpdump text parsing
+seq_re = re.compile(r'seq (\d+)')
+ack_re = re.compile(r'ack (\d+)')
+len_re = re.compile(r'length (\d+)')
+
+# --- LAUNCH KERNEL-LEVEL SNIFFER (tcpdump in C) ---
+# -tt: Microsecond Kernel Timestamp since Epoch
+# -n: Disable DNS lookups for max speed
+# -l: Line-buffered output so Python gets data immediately
+tcpdump_cmd = [
+    "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-tt", "-n", "-l",
+    f"tcp and not port {TELEMETRY_PORT} and not port {AGENT_PORT}"
+]
+
+print(f"[*] Pi #{PI_ID} High-Precision Tracer Active ({MY_IP}). Listening on {TARGET_INTERFACE}...")
+
+proc = subprocess.Popen(
+    tcpdump_cmd,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,
+    text=True,
+    bufsize=1
+)
+
+try:
+    for line in iter(proc.stdout.readline, ''):
+        parts = line.strip().split()
+        if len(parts) < 5 or parts[1] != "IP":
+            continue
+
+        try:
+            # 1. KERNEL TIMESTAMP (Bypasses Python delay completely)
+            timestamp = float(parts[0])
+
+            # Extract IPs and Ports
+            src_full = parts[2]
+            dst_full = parts[4].rstrip(':')
+            src_ip, sport = src_full.rsplit('.', 1)
+            dst_ip, dport = dst_full.rsplit('.', 1)
+
+            # Extract Sequence, Ack, and Length
+            seq_match = seq_re.search(line)
+            ack_match = ack_re.search(line)
+            len_match = len_re.search(line)
+
+            seq_num = int(seq_match.group(1)) if seq_match else 0
+            ack_num = int(ack_match.group(1)) if ack_match else 0
+            pkt_len = int(len_match.group(1)) if len_match else 0
+
+            direction = "tx" if src_ip == MY_IP else "rx"
+
+            telemetry_data = {
+                "pi": PI_ID,
+                "dir": direction,
+                "src": src_ip,
+                "dst": dst_ip,
+                "sport": int(sport),
+                "dport": int(dport),
+                "seq": seq_num,
+                "ack": ack_num,
+                "len": pkt_len,
+                "ts": timestamp  # Kernel-captured timestamp
+            }
+
+            payload = json.dumps(telemetry_data).encode('utf-8')
+            telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
+
+        except Exception:
+            continue
+
+except KeyboardInterrupt:
+    proc.terminate()
+    sys.exit(0)
