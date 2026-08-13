@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 import os
 import sys
-import time
 import socket
 import json
-import zlib  # Fast built-in CRC hashing for UDP packet fingerprints
 import yaml
-from scapy.all import sniff, IP, TCP, UDP, ICMP, get_if_addr
+from scapy.all import sniff, IP, TCP, get_if_addr
 
 # --- CONFIGURATION ---
 MAIN_PC_IP = "192.168.0.243"  # Central Laptop / Collector IP
@@ -34,7 +32,6 @@ def get_my_pi_id(file_path, my_ip):
         if isinstance(next(iter(data.values())), dict):
             data = next(iter(data.values()))
             
-        # Match MY_IP against the config to find our Pi ID
         for pi_id, ip in data.items():
             if str(ip).strip() == my_ip:
                 return str(pi_id)
@@ -45,50 +42,47 @@ def get_my_pi_id(file_path, my_ip):
 
 PI_ID = get_my_pi_id(CONFIG_PATH, MY_IP)
 
-# BPF FILTER: Capture IP traffic, explicitly ignoring:
-# - Telemetry traffic (65001)
-# - PTP Clock Sync traffic (319, 320)
-# - NTP / Chrony Clock Sync traffic (123)
-BPF_FILTER = f"ip and not port {TELEMETRY_PORT} and not port 319 and not port 320 and not port 123"
+# BPF FILTER: Strictly capture TCP traffic, ignoring telemetry port
+BPF_FILTER = f"tcp and not port {TELEMETRY_PORT}"
 
 telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 def process_packet(pkt):
-    # Quick filter: ignore packets not involving local IP to reduce JSON load
-    if IP not in pkt:
-        return
+    if IP in pkt and TCP in pkt:
+        src_ip = pkt[IP].src
+        dst_ip = pkt[IP].dst
         
-    src_ip = pkt[IP].src
-    dst_ip = pkt[IP].dst
-    
-    # Grab kernel capture timestamp directly
-    timestamp = float(pkt.time)
+        # High-precision packet arrival timestamp
+        timestamp = float(pkt.time)
+        
+        # Extract TCP sequence, ack numbers, and payload length
+        seq_num = pkt[TCP].seq
+        ack_num = pkt[TCP].ack
+        payload_len = len(pkt[TCP].payload)
+        
+        direction = "tx" if src_ip == MY_IP else "rx"
 
-    # Use IP Header ID instead of hashing raw payloads for UDP during high throughput
-    if TCP in pkt:
-        pkt_id = f"tcp_{pkt[TCP].seq}"
-    elif UDP in pkt:
-        pkt_id = f"udp_{pkt[UDP].sport}_{pkt[UDP].dport}_{pkt[IP].id}"
-    else:
-        pkt_id = f"ip_{pkt[IP].id}"
+        # Structural payload tailored for TCP 2-Way RTT calculation
+        telemetry_data = {
+            "pi": PI_ID,
+            "dir": direction,
+            "src": src_ip,
+            "dst": dst_ip,
+            "sport": pkt[TCP].sport,
+            "dport": pkt[TCP].dport,
+            "seq": seq_num,
+            "ack": ack_num,
+            "len": payload_len,
+            "flags": str(pkt[TCP].flags),
+            "ts": timestamp
+        }
 
-    direction = "tx" if src_ip == MY_IP else "rx"
-
-    telemetry_data = {
-        "pi": PI_ID,
-        "dir": direction,
-        "ip_id": pkt_id,
-        "src": src_ip,
-        "dst": dst_ip,
-        "ts": timestamp
-    }
-
-    try:
-        payload = json.dumps(telemetry_data).encode('utf-8')
-        telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
-    except Exception:
-        pass  # Avoid printing errors in hot loop to prevent stdout blocking
+        try:
+            payload = json.dumps(telemetry_data).encode('utf-8')
+            telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
+        except Exception:
+            pass  # Suppress print statements in hot loop to preserve CPU
 
 # --- START SNIFFER ---
-print(f"[*] Pi #{PI_ID} Packet Tracer Active ({MY_IP}). Sniffing on {TARGET_INTERFACE}...")
+print(f"[*] Pi #{PI_ID} Packet Tracer Active ({MY_IP}). Sniffing TCP on {TARGET_INTERFACE}...")
 sniff(iface=TARGET_INTERFACE, filter=BPF_FILTER, prn=process_packet, store=False)
