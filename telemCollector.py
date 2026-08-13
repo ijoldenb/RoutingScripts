@@ -1,85 +1,80 @@
-import os
+#!/usr/bin/env python3
 import socket
 import json
-import csv
 import time
-from collections import defaultdict
 
-# --- CONFIGURATION ---
 TELEMETRY_PORT = 65001
-CSV_FILENAME = os.path.expanduser("~/RoutingScripts/Data/network_data.csv")
-
-# Vaults for tracking network states
-trace_buffer = defaultdict(dict)  # Pairs individual packet tx/rx via ip_id
-latest_legs = {}                  # Stores the most recent directional one-way calculation
-
-# Initialize the CSV file with explicit Sender and Receiver headers
-with open(CSV_FILENAME, mode='w', newline='') as csv_file:
-    writer = csv.writer(csv_file)
-    writer.writerow(['Timestamp', 'Sender', 'Receiver', 'Two_Way_Latency_ms'])
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", TELEMETRY_PORT))
 
-print(f"[*] Central Trace Collector listening on UDP {TELEMETRY_PORT}...")
-print(f"[*] Writing directional 2-way RTT data to '{CSV_FILENAME}'...")
-print("=========================================================================")
+print(f"[*] Telemetry Collector listening on port {TELEMETRY_PORT}...")
 
-# Keep the file open in append mode, flushing entries immediately
-with open(CSV_FILENAME, mode='a', newline='') as csv_file:
-    writer = csv.writer(csv_file)
-    
-    while True:
-        data, addr = sock.recvfrom(1024)
-        
-        try:
-            msg = json.loads(data.decode('utf-8'))
-            
-            packet_key = (msg["ip_id"], msg["src"], msg["dst"])
-            direction = msg["dir"]
-            timestamp = msg["ts"]
-            
-            # Buffer the raw telemetry timestamps for this specific packet ID
-            trace_buffer[packet_key][direction] = timestamp
-            
-            # 1. Once an individual physical packet leg completes (both tx and rx arrived)
-            if "tx" in trace_buffer[packet_key] and "rx" in trace_buffer[packet_key]:
-                tx_time = trace_buffer[packet_key]["tx"]
-                rx_time = trace_buffer[packet_key]["rx"]
-                
-                # Compute raw one-way transit (warped by clock skew)
-                one_way_ms = (rx_time - tx_time) * 1000.0
-                
-                src = msg["src"]
-                dst = msg["dst"]
-                
-                # Save this leg's current calculation
-                latest_legs[(src, dst)] = one_way_ms
-                
-                # 2. Check if the reverse round-trip leg has also finished
-                if (dst, src) in latest_legs:
-                    # Combining opposing legs mathematically deletes the clock skew
-                    two_way_ms = latest_legs[(src, dst)] + latest_legs[(dst, src)]
-                    current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    # Because (dst, src) was already waiting in the vault, 
-                    # 'dst' is the host that originally initiated this round trip.
-                    sender = dst
-                    receiver = src
-                    
-                    # Print result to console showing directional flow
-                    print(f"[RTT] {sender} -> {receiver} | 2-Way Latency: {two_way_ms:.3f} ms")
-                    
-                    # Write immediately to CSV
-                    writer.writerow([current_time, sender, receiver, f"{two_way_ms:.3f}"])
-                    csv_file.flush() 
-                    
-                    # Clear paired legs out of memory cache
-                    del latest_legs[(src, dst)]
-                    del latest_legs[(dst, src)]
-                    
-                # Purge raw single packet state from tracking buffer
-                del trace_buffer[packet_key]
+# Pending tables mapping expected response -> tx_timestamp
+# TCP Key:  (pi_id, dst_ip, sport, expected_ack)
+# ICMP Key: (pi_id, dst_ip, seq)
+pending_tcp = {}
+pending_icmp = {}
 
-        except json.JSONDecodeError:
-            continue
+last_cleanup = time.time()
+
+while True:
+    try:
+        data, _ = sock.recvfrom(8192)
+        msg = json.loads(data.decode('utf-8'))
+
+        proto = msg.get("proto")
+        pi_id = msg.get("pi")
+        direction = msg.get("dir")
+        src_ip = msg.get("src")
+        dst_ip = msg.get("dst")
+        ts = msg.get("ts")
+
+        # --- PROCESS ICMP (PING) ---
+        if proto == "icmp":
+            seq = msg.get("seq")
+            if direction == "tx" and msg.get("type") == "request":
+                pending_icmp[(pi_id, dst_ip, seq)] = ts
+
+            elif direction == "rx" and msg.get("type") == "reply":
+                key = (pi_id, src_ip, seq)
+                if key in pending_icmp:
+                    tx_ts = pending_icmp.pop(key)
+                    rtt_ms = (ts - tx_ts) * 1000.0
+                    if rtt_ms >= 0:
+                        print(f"[PING RTT] Pi #{pi_id} ({dst_ip}) -> {src_ip} | 2-Way Latency: {rtt_ms:.3f} ms")
+
+        # --- PROCESS TCP (IPERF3 / FILE TRANSFERS) ---
+        elif proto == "tcp":
+            sport = msg.get("sport")
+            dport = msg.get("dport")
+            seq = msg.get("seq", 0)
+            ack = msg.get("ack", 0)
+            pkt_len = msg.get("len", 0)
+
+            # Node transmitted data frame
+            if direction == "tx" and pkt_len > 0:
+                expected_ack = seq + pkt_len
+                pending_tcp[(pi_id, dst_ip, sport, expected_ack)] = ts
+
+            # Node received acknowledgment
+            elif direction == "rx" and ack > 0:
+                key = (pi_id, src_ip, dport, ack)
+                if key in pending_tcp:
+                    tx_ts = pending_tcp.pop(key)
+                    rtt_ms = (ts - tx_ts) * 1000.0
+                    if rtt_ms >= 0:
+                        print(f"[TCP RTT]  Pi #{pi_id} ({dst_ip}) -> {src_ip} | 2-Way Latency: {rtt_ms:.3f} ms")
+
+        # --- PERIODIC MEMORY CLEANUP ---
+        # Flushes stale keys during high-throughput transfers if packets get dropped
+        now = time.time()
+        if now - last_cleanup > 5.0:
+            if len(pending_tcp) > 10000:
+                pending_tcp.clear()
+            if len(pending_icmp) > 1000:
+                pending_icmp.clear()
+            last_cleanup = now
+
+    except Exception:
+        continue
