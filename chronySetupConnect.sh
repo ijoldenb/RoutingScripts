@@ -1,9 +1,17 @@
 #!/bin/bash
 set -e
 
-laptopPath="$HOME/RoutingScripts/"
+# --- CONFIGURATION BAR ---
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+
+laptopPath="${REAL_HOME}/RoutingScripts/"
 MAIN_PC_IP="192.168.0.243"
+
 CLUSTER_CONFIG="${laptopPath}control_IP.yaml"
+
+# Point directly to your user's SSH key (change id_ed25519 to id_rsa if using RSA)
+SSH_KEY="${REAL_HOME}/.ssh/id_ed25519"
 
 
 echo "=== [1/2] Configuring Local Main PC (Time Master) ==="

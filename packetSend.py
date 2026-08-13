@@ -3,7 +3,7 @@ import random
 import subprocess
 
 # --- Configuration ---
-RECEIVER_IP = '192.168.103.10'   # The IP of the destination Raspberry Pi
+RECEIVER_IP = '192.168.102.10'   # The IP of the destination Raspberry Pi
 RECEIVER_USER = 'pi'             # The username on the destination Pi
 DESTINATION_PATH = '/home/pi/'   # Where to save the file on the receiver
 DUMMY_FILE = 'dummy_data.txt'
