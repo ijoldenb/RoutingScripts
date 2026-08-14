@@ -4,18 +4,18 @@ import json
 import time
 
 TELEMETRY_PORT = 65001
-REPORT_INTERVAL = 1.0  # Calculate bandwidth every 1 second
+REPORT_INTERVAL = 1.0  # Report bandwidth summary every 1 second
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", TELEMETRY_PORT))
 
 print(f"[*] Telemetry Collector listening on port {TELEMETRY_PORT}...")
 
-# Latency Tracking tables
+# Single-node latency tracking tables
 pending_tcp = {}
 pending_icmp = {}
 
-# Bandwidth Tracking table: (pi_id, src_ip, dst_ip) -> total_bytes
+# Bandwidth tracking: (pi_id, src_ip, dst_ip) -> total_bytes
 bw_counter = {}
 
 last_cleanup = time.time()
@@ -34,13 +34,12 @@ while True:
         ts = msg.get("ts")
         pkt_len = msg.get("len", 0)
 
-        # --- BANDWIDTH TRACKING ---
-        # Track bytes on outgoing transmissions (TX) for accurate throughput measurement
+        # --- BANDWIDTH TRACKING (TCP, UDP, and ICMP) ---
         if direction == "tx" and pkt_len > 0:
             flow_key = (pi_id, src_ip, dst_ip)
             bw_counter[flow_key] = bw_counter.get(flow_key, 0) + pkt_len
 
-        # --- PROCESS ICMP (PING) ---
+        # --- LATENCY TRACKING: ICMP ---
         if proto == "icmp":
             seq = msg.get("seq")
             if direction == "tx" and msg.get("type") == "request":
@@ -54,7 +53,7 @@ while True:
                     if rtt_ms >= 0:
                         print(f"[PING RTT] Pi #{pi_id} ({dst_ip}) -> {src_ip} | Latency: {rtt_ms:.3f} ms")
 
-        # --- PROCESS TCP ---
+        # --- LATENCY TRACKING: TCP ---
         elif proto == "tcp":
             sport = msg.get("sport")
             dport = msg.get("dport")
@@ -73,20 +72,21 @@ while True:
                     if rtt_ms >= 0:
                         print(f"[TCP RTT]  Pi #{pi_id} ({dst_ip}) -> {src_ip} | Latency: {rtt_ms:.3f} ms")
 
+        # Note: UDP packets are ignored for latency calculations
+
         # --- PERIODIC BANDWIDTH REPORTING ---
         now = time.time()
         bw_elapsed = now - last_bw_report
         if bw_elapsed >= REPORT_INTERVAL:
             for (pi, src, dst), total_bytes in list(bw_counter.items()):
-                # Add ~54 bytes per frame to approximate full Layer 2 Ethernet frame overhead
                 mbps = (total_bytes * 8) / (bw_elapsed * 1_000_000)
-                if mbps >= 0.01:  # Filter out idle background noise
+                if mbps >= 0.01:
                     print(f"===> [BANDWIDTH] Pi #{pi} | Flow: {src} -> {dst} | Rate: {mbps:.2f} Mbps")
 
             bw_counter.clear()
             last_bw_report = now
 
-        # Memory safeguard
+        # Memory cleanup safeguard
         if now - last_cleanup > 5.0:
             if len(pending_tcp) > 10000:
                 pending_tcp.clear()

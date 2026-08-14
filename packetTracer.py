@@ -8,7 +8,7 @@ import subprocess
 from scapy.all import get_if_addr
 
 # --- CONFIGURATION ---
-MAIN_PC_IP = "192.168.0.243"  # Central Laptop / Collector IP
+MAIN_PC_IP = "192.168.0.243"  # Central Collector IP
 TELEMETRY_PORT = 65001        # Port telemCollector.py listens on
 AGENT_PORT = 65000            # Port tc agent listens on
 TARGET_INTERFACE = "eth0"     # Physical interface on the Pi
@@ -40,7 +40,6 @@ PI_ID = get_my_pi_id(CONFIG_PATH, MY_IP)
 telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 telemetry_sock.setblocking(False)
 
-# Sniffs TCP, UDP, and ICMP while excluding control/telemetry ports
 tcpdump_cmd = [
     "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-B", "4096", "-tt", "-n", "-l",
     f"(tcp or udp or icmp) and not port {TELEMETRY_PORT} and not port {AGENT_PORT}"
@@ -63,7 +62,7 @@ def parse_line(line):
 
     ts = float(parts[0])
 
-    # --- HANDLE ICMP (PING) ---
+    # --- 1. ICMP (PING) ---
     if "ICMP" in line:
         src_ip = parts[2]
         dst_ip = parts[4].rstrip(':')
@@ -88,10 +87,10 @@ def parse_line(line):
             "type": icmp_type,
             "seq": seq,
             "ts": ts,
-            "len": 64  # Standard ICMP payload size
+            "len": 64
         }
 
-    # --- HANDLE TCP & UDP (DATA FLOWS) ---
+    # --- 2. TCP & UDP ---
     if ">" in parts:
         try:
             idx = parts.index(">")
@@ -101,21 +100,26 @@ def parse_line(line):
             src_ip, sport = src_full.rsplit('.', 1)
             dst_ip, dport = dst_full.rsplit('.', 1)
 
-            seq = 0
-            ack = 0
+            proto = "udp" if "UDP" in line else "tcp"
             pkt_len = 0
 
-            proto = "udp" if "UDP" in line else "tcp"
-
-            if "seq " in line:
-                seq_str = line.split("seq ")[1].split(",")[0].split()[0]
-                seq = int(seq_str.split(":")[0]) if ":" in seq_str else int(seq_str)
-
-            if "ack " in line:
-                ack = int(line.split("ack ")[1].split(",")[0].split()[0])
-
             if "length " in line:
-                pkt_len = int(line.split("length ")[1].split()[0])
+                try:
+                    pkt_len = int(line.split("length ")[1].split()[0].rstrip(':'))
+                except Exception:
+                    pkt_len = 0
+
+            seq = 0
+            ack = 0
+
+            # Only parse Sequence and ACK for TCP flows
+            if proto == "tcp":
+                if "seq " in line:
+                    seq_str = line.split("seq ")[1].split(",")[0].split()[0]
+                    seq = int(seq_str.split(":")[0]) if ":" in seq_str else int(seq_str)
+
+                if "ack " in line:
+                    ack = int(line.split("ack ")[1].split(",")[0].split()[0])
 
             direction = "tx" if src_ip == MY_IP else "rx"
             return {
