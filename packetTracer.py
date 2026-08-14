@@ -11,13 +11,13 @@ from scapy.all import get_if_addr
 MAIN_PC_IP = "192.168.0.243"      # Central Collector IP
 TELEMETRY_PORTS = [65001, 65002]  # 65001: RTT | 65002: Bandwidth
 AGENT_PORT = 65000                # Port tc agent listens on
-TARGET_INTERFACE = "eth0"         # Physical interface on the Pi
+TARGET_INTERFACE = "eth0"         # Change to end0 if on Pi OS Bookworm
 CONFIG_PATH = os.path.expanduser("~/RoutingScripts/control_IP.yaml")
 
 try:
     MY_IP = get_if_addr(TARGET_INTERFACE)
 except Exception as e:
-    print(f"[FATAL] Unable to get IP address for interface {TARGET_INTERFACE}: {e}")
+    print(f"[FATAL] Unable to resolve IP for interface {TARGET_INTERFACE}: {e}")
     sys.exit(1)
 
 def get_my_pi_id(file_path, my_ip):
@@ -38,23 +38,23 @@ def get_my_pi_id(file_path, my_ip):
 PI_ID = get_my_pi_id(CONFIG_PATH, MY_IP)
 
 telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-telemetry_sock.setblocking(False)
 
-# Exclude all control and telemetry ports from capture
-ports_filter = " and ".join([f"not port {p}" for p in TELEMETRY_PORTS]) + f" and not port {AGENT_PORT}"
+# BPF filter excluding telemetry/agent ports
 tcpdump_cmd = [
     "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-B", "4096", "-tt", "-n", "-l",
-    f"(tcp or udp or icmp) and {ports_filter}"
+    f"(tcp or udp or icmp) and not port {TELEMETRY_PORTS[0]} and not port {TELEMETRY_PORTS[1]} and not port {AGENT_PORT}"
 ]
 
-print(f"[*] Pi #{PI_ID} Tracer Active ({MY_IP}). Dual-streaming telemetry to ports {TELEMETRY_PORTS}...")
+print(f"[*] Pi #{PI_ID} Tracer Active ({MY_IP}) on {TARGET_INTERFACE}")
+print(f"[*] Dispatching telemetry to {MAIN_PC_IP}:{TELEMETRY_PORTS}...\n")
 
+# Note: bufsize=1 forces true line-buffering
 proc = subprocess.Popen(
     tcpdump_cmd,
     stdout=subprocess.PIPE,
-    stderr=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
     text=True,
-    bufsize=8192
+    bufsize=1
 )
 
 def parse_line(line):
@@ -62,9 +62,12 @@ def parse_line(line):
     if len(parts) < 4 or parts[1] != "IP":
         return None
 
-    ts = float(parts[0])
+    try:
+        ts = float(parts[0])
+    except ValueError:
+        return None
 
-    # 1. ICMP (PING)
+    # 1. ICMP Parsing
     if "ICMP" in line:
         src_ip = parts[2]
         dst_ip = parts[4].rstrip(':')
@@ -81,18 +84,12 @@ def parse_line(line):
 
         direction = "tx" if src_ip == MY_IP else "rx"
         return {
-            "proto": "icmp",
-            "pi": PI_ID,
-            "dir": direction,
-            "src": src_ip,
-            "dst": dst_ip,
-            "type": icmp_type,
-            "seq": seq,
-            "ts": ts,
-            "len": 64
+            "proto": "icmp", "pi": PI_ID, "dir": direction,
+            "src": src_ip, "dst": dst_ip, "type": icmp_type,
+            "seq": seq, "ts": ts, "len": 64
         }
 
-    # 2. TCP & UDP
+    # 2. TCP / UDP Parsing
     if ">" in parts:
         try:
             idx = parts.index(">")
@@ -124,36 +121,30 @@ def parse_line(line):
 
             direction = "tx" if src_ip == MY_IP else "rx"
             return {
-                "proto": proto,
-                "pi": PI_ID,
-                "dir": direction,
-                "src": src_ip,
-                "dst": dst_ip,
-                "sport": int(sport),
-                "dport": int(dport),
-                "seq": seq,
-                "ack": ack,
-                "len": pkt_len,
-                "ts": ts
+                "proto": proto, "pi": PI_ID, "dir": direction,
+                "src": src_ip, "dst": dst_ip, "sport": int(sport),
+                "dport": int(dport), "seq": seq, "ack": ack,
+                "len": pkt_len, "ts": ts
             }
         except Exception:
             return None
 
     return None
 
+pkt_count = 0
+
 try:
     for line in iter(proc.stdout.readline, ''):
-        try:
-            telemetry_data = parse_line(line)
-            if telemetry_data:
-                payload = json.dumps(telemetry_data).encode('utf-8')
-                # Dispatch payload to both RTT and Bandwidth collector ports
-                for port in TELEMETRY_PORTS:
-                    telemetry_sock.sendto(payload, (MAIN_PC_IP, port))
-        except (OSError, socket.error):
-            pass
-        except Exception:
-            continue
+        telemetry_data = parse_line(line)
+        if telemetry_data:
+            pkt_count += 1
+            payload = json.dumps(telemetry_data).encode('utf-8')
+            for port in TELEMETRY_PORTS:
+                telemetry_sock.sendto(payload, (MAIN_PC_IP, port))
+            
+            # Print a status pulse every 20 captured packets to confirm life
+            if pkt_count % 20 == 0:
+                print(f"[DEBUG] Captured and forwarded {pkt_count} packets...", flush=True)
 
 except KeyboardInterrupt:
     proc.terminate()
