@@ -15,4 +15,4 @@ done
 
 echo "Commands Sent"
 
-python3 /home/ijoldenb/RoutingScripts/telemCollector.py
+#python3 /home/ijoldenb/RoutingScripts/telemCollector.py

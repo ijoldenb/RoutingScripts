@@ -8,12 +8,12 @@ TELEMETRY_PORT = 65001
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", TELEMETRY_PORT))
 
-print(f"[*] Latency Collector listening on port {TELEMETRY_PORT}...")
+print(f"==================================================")
+print(f"[*] LATENCY COLLECTOR ONLINE (Port {TELEMETRY_PORT})")
+print(f"==================================================")
 
-# Latency Tracking tables
 pending_tcp = {}
 pending_icmp = {}
-
 last_cleanup = time.time()
 
 while True:
@@ -27,9 +27,8 @@ while True:
         src_ip = msg.get("src")
         dst_ip = msg.get("dst")
         ts = msg.get("ts")
-        pkt_len = msg.get("len", 0)
 
-        # --- PROCESS ICMP (PING) ---
+        # 1. ICMP (PING)
         if proto == "icmp":
             seq = msg.get("seq")
             if direction == "tx" and msg.get("type") == "request":
@@ -43,12 +42,13 @@ while True:
                     if rtt_ms >= 0:
                         print(f"[PING RTT] Pi #{pi_id} ({dst_ip}) -> {src_ip} | Latency: {rtt_ms:.3f} ms")
 
-        # --- PROCESS TCP ---
+        # 2. TCP
         elif proto == "tcp":
             sport = msg.get("sport")
             dport = msg.get("dport")
             seq = msg.get("seq", 0)
             ack = msg.get("ack", 0)
+            pkt_len = msg.get("len", 0)
 
             if direction == "tx" and pkt_len > 0:
                 expected_ack = seq + pkt_len
@@ -62,7 +62,7 @@ while True:
                     if rtt_ms >= 0:
                         print(f"[TCP RTT]  Pi #{pi_id} ({dst_ip}) -> {src_ip} | Latency: {rtt_ms:.3f} ms")
 
-        # Memory safeguard
+        # Memory Cleanup
         now = time.time()
         if now - last_cleanup > 5.0:
             if len(pending_tcp) > 10000:

@@ -8,10 +8,10 @@ import subprocess
 from scapy.all import get_if_addr
 
 # --- CONFIGURATION ---
-MAIN_PC_IP = "192.168.0.243"  # Central Collector IP
-TELEMETRY_PORT = 65001        # Port telemCollector.py listens on
-AGENT_PORT = 65000            # Port tc agent listens on
-TARGET_INTERFACE = "eth0"     # Physical interface on the Pi
+MAIN_PC_IP = "192.168.0.243"      # Central Collector IP
+TELEMETRY_PORTS = [65001, 65002]  # 65001: RTT | 65002: Bandwidth
+AGENT_PORT = 65000                # Port tc agent listens on
+TARGET_INTERFACE = "eth0"         # Physical interface on the Pi
 CONFIG_PATH = os.path.expanduser("~/RoutingScripts/control_IP.yaml")
 
 try:
@@ -40,12 +40,14 @@ PI_ID = get_my_pi_id(CONFIG_PATH, MY_IP)
 telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 telemetry_sock.setblocking(False)
 
+# Exclude all control and telemetry ports from capture
+ports_filter = " and ".join([f"not port {p}" for p in TELEMETRY_PORTS]) + f" and not port {AGENT_PORT}"
 tcpdump_cmd = [
     "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-B", "4096", "-tt", "-n", "-l",
-    f"(tcp or udp or icmp) and not port {TELEMETRY_PORT} and not port {AGENT_PORT}"
+    f"(tcp or udp or icmp) and {ports_filter}"
 ]
 
-print(f"[*] Pi #{PI_ID} Tracer Active ({MY_IP}). Sniffing {TARGET_INTERFACE}...")
+print(f"[*] Pi #{PI_ID} Tracer Active ({MY_IP}). Dual-streaming telemetry to ports {TELEMETRY_PORTS}...")
 
 proc = subprocess.Popen(
     tcpdump_cmd,
@@ -62,7 +64,7 @@ def parse_line(line):
 
     ts = float(parts[0])
 
-    # --- 1. ICMP (PING) ---
+    # 1. ICMP (PING)
     if "ICMP" in line:
         src_ip = parts[2]
         dst_ip = parts[4].rstrip(':')
@@ -90,7 +92,7 @@ def parse_line(line):
             "len": 64
         }
 
-    # --- 2. TCP & UDP ---
+    # 2. TCP & UDP
     if ">" in parts:
         try:
             idx = parts.index(">")
@@ -112,7 +114,6 @@ def parse_line(line):
             seq = 0
             ack = 0
 
-            # Only parse Sequence and ACK for TCP flows
             if proto == "tcp":
                 if "seq " in line:
                     seq_str = line.split("seq ")[1].split(",")[0].split()[0]
@@ -146,7 +147,9 @@ try:
             telemetry_data = parse_line(line)
             if telemetry_data:
                 payload = json.dumps(telemetry_data).encode('utf-8')
-                telemetry_sock.sendto(payload, (MAIN_PC_IP, TELEMETRY_PORT))
+                # Dispatch payload to both RTT and Bandwidth collector ports
+                for port in TELEMETRY_PORTS:
+                    telemetry_sock.sendto(payload, (MAIN_PC_IP, port))
         except (OSError, socket.error):
             pass
         except Exception:
