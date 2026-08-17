@@ -38,7 +38,7 @@ def get_my_pi_id(file_path, my_ip):
 PI_ID = get_my_pi_id(CONFIG_PATH, MY_IP)
 
 telemetry_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-telemetry_sock.setblocking(False)
+#telemetry_sock.setblocking(False)
 
 # Exclude all control and telemetry ports from capture
 ports_filter = " and ".join([f"not port {p}" for p in TELEMETRY_PORTS]) + f" and not port {AGENT_PORT}"
