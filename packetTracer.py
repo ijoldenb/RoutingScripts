@@ -54,7 +54,7 @@ proc = subprocess.Popen(
     stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL,
     text=True,
-    bufsize=8192
+    bufsize=65536
 )
 
 def parse_line(line):
