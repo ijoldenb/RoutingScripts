@@ -43,7 +43,7 @@ telemetry_sock.setblocking(False)
 # Exclude all control and telemetry ports from capture
 ports_filter = " and ".join([f"not port {p}" for p in TELEMETRY_PORTS]) + f" and not port {AGENT_PORT}"
 tcpdump_cmd = [
-    "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-B", "4096", "-tt", "-n", "-l",
+    "sudo", "tcpdump", "-i", TARGET_INTERFACE, "-B", "8192", "-tt", "-n", "-l",
     f"(tcp or udp or icmp) and {ports_filter}"
 ]
 
